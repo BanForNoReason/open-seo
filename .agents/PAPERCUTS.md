@@ -20,3 +20,15 @@ data, or sensitive paths.
 ## Resolved
 
 Move fixed entries here, mark them checked, and append the resolving date or commit.
+
+## badseo harness vs `wrangler dev`: sitemap emits badseo.dev locs locally
+
+`badseo/scripts/run-audit.ts` against a local `wrangler dev --port 8787` fails 4
+sitemap-dependent checks (orphan page, 500, 403, duplicate-content) with
+NOT CRAWLED: wrangler dev adopts the `badseo.dev` custom-domain route as the
+host the worker sees, so `/sitemap.xml` emits `http://badseo.dev/...` locs that
+the crawler's same-origin filter drops. Run it as
+`wrangler dev --port 8787 --local-upstream "localhost:8787"` (after
+`vite build`). Also: `pnpm --filter badseo audit` fails with
+"Unknown option: 'recursive'" from the repo root — badseo is its own pnpm
+workspace, not a root workspace member; use `npx tsx badseo/scripts/run-audit.ts`.

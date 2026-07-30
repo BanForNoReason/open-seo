@@ -5,36 +5,34 @@ import {
   fetchAndStoreLighthouseResult,
   selectLighthouseSample,
 } from "@/server/lib/audit/lighthouse";
-import { getOrigin } from "@/server/lib/audit/url-utils";
+import {
+  getOrigin,
+  isSameOrigin,
+  normalizeUrl,
+} from "@/server/lib/audit/url-utils";
+import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
+import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type { AuditConfig } from "@/server/lib/audit/types";
 import { captureServerEvent } from "@/server/lib/posthog";
 import {
   runCrawlPhase,
-  type CrawledPageSummary,
   type CrawlPhaseResult,
 } from "@/server/workflows/siteAuditWorkflowCrawl";
 import { pgStep } from "@/server/workflows/pgStep";
+import {
+  DB_STEP,
+  DISCOVERY_STEP,
+  LIGHTHOUSE_BATCH_STEP,
+  MULTIPAGE_CHECKS_STEP,
+} from "@/server/workflows/auditStepConfigs";
 
 const LIGHTHOUSE_URL_BATCH_SIZE = 10;
-
-// Workflows rejects step outputs over 1MiB; keep the sitemap seed list well
-// under that. The crawl visits at most maxPages URLs, so extra seeds are moot.
-const SITEMAP_SEED_BYTE_BUDGET = 768 * 1024;
-
-function capSitemapSeeds(urls: string[], maxPages: number): string[] {
-  const seeds: string[] = [];
-  let bytes = 0;
-  for (const url of urls) {
-    if (seeds.length >= maxPages) break;
-    bytes += url.length + 3; // JSON quotes + comma
-    if (bytes > SITEMAP_SEED_BYTE_BUDGET) break;
-    seeds.push(url);
-  }
-  return seeds;
-}
+/** Frontier seeds per scratchpad RPC call. */
+const SEED_RPC_BATCH = 2_000;
 
 type AuditPhasesParams = {
   auditId: string;
@@ -60,13 +58,13 @@ export async function runAuditPhases(
   const origin = getOrigin(startUrl);
   const maxPages = config.maxPages;
 
-  const discovery = await runDiscoveryPhase(
-    step,
+  const discovery = await runDiscoveryPhase(step, {
     auditId,
     workflowInstanceId,
     origin,
+    startUrl,
     maxPages,
-  );
+  });
   // Parsed outside the step from checkpointed text, so replays see the exact
   // robots rules the original run used (a live re-fetch could differ and
   // desync the frontier from already-persisted crawl batches).
@@ -75,10 +73,9 @@ export async function runAuditPhases(
     auditId,
     workflowInstanceId,
     origin,
-    startUrl,
     maxPages,
     robots,
-    sitemapUrls: discovery.sitemapUrls,
+    seededCount: discovery.seededCount,
   });
   await runLighthousePhase(step, {
     auditId,
@@ -87,7 +84,6 @@ export async function runAuditPhases(
     projectId,
     startUrl,
     config,
-    pages: crawl.pages,
   });
   await finalizeAudit({
     step,
@@ -103,21 +99,61 @@ export async function runAuditPhases(
 
 async function runDiscoveryPhase(
   step: WorkflowStep,
-  auditId: string,
-  workflowInstanceId: string,
-  origin: string,
-  maxPages: number,
+  input: {
+    auditId: string;
+    workflowInstanceId: string;
+    origin: string;
+    startUrl: string;
+    maxPages: number;
+  },
 ) {
-  return pgStep(step, "discover-urls", undefined, async () => {
+  const { auditId, workflowInstanceId, origin, startUrl, maxPages } = input;
+  // "-v2": the checkpoint shape changed (seeds now live in the scratchpad DO
+  // instead of the step return). A pre-refactor instance replayed under this
+  // code must re-run discovery — resuming from the old cached {sitemapUrls}
+  // shape would leave the scratchpad empty and finalize a zero-page audit.
+  return pgStep(step, "discover-urls-v2", DISCOVERY_STEP, async () => {
     const result = await discoverUrls(origin, maxPages);
+    const robots = parseRobotsTxt(origin, result.robotsText);
+    const scratchpad = getAuditScratchpad(auditId);
+
+    // Seeds go straight into the scratchpad frontier — nothing large is
+    // returned as step state (an uncapped seed list used to blow the ~1MiB
+    // step-output limit on big sitemaps).
+    let seededCount = 0;
+    const normalizedStart = normalizeUrl(startUrl) ?? startUrl;
+    if (
+      robots.isAllowed(normalizedStart) &&
+      isSameOrigin(normalizedStart, origin)
+    ) {
+      await scratchpad.seedStart(normalizedStart);
+      seededCount += 1;
+    }
+
+    // The start URL is deliberately not excluded here: seedSitemapUrls
+    // upserts, so a start URL that also appears in the sitemap keeps its
+    // link-queue position but gains the in-sitemap flag.
+    const seen = new Set<string>();
+    const seeds: string[] = [];
+    for (const url of result.urls) {
+      const normalized = normalizeUrl(url);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      if (!isSameOrigin(normalized, origin)) continue;
+      if (!isCrawlableUrl(normalized)) continue;
+      if (!robots.isAllowed(normalized)) continue;
+      seeds.push(normalized);
+    }
+    for (let i = 0; i < seeds.length; i += SEED_RPC_BATCH) {
+      await scratchpad.seedSitemapUrls(seeds.slice(i, i + SEED_RPC_BATCH));
+    }
+    seededCount += seeds.filter((seed) => seed !== normalizedStart).length;
+
     await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
-      pagesTotal: Math.min(result.urls.length + 1, maxPages),
+      pagesTotal: Math.min(seededCount, maxPages),
       currentPhase: "crawling",
     });
-    return {
-      sitemapUrls: capSitemapSeeds(result.urls, maxPages),
-      robotsText: result.robotsText,
-    };
+    return { robotsText: result.robotsText, seededCount };
   });
 }
 
@@ -128,7 +164,6 @@ type LighthousePhaseParams = {
   projectId: string;
   startUrl: string;
   config: AuditConfig;
-  pages: CrawledPageSummary[];
 };
 
 async function runLighthousePhase(
@@ -142,7 +177,6 @@ async function runLighthousePhase(
     projectId,
     startUrl,
     config,
-    pages,
   } = params;
   if (config.lighthouseStrategy === "none") return;
 
@@ -150,7 +184,6 @@ async function runLighthousePhase(
     step,
     auditId,
     workflowInstanceId,
-    pages,
     startUrl,
     strategy: config.lighthouseStrategy,
   });
@@ -165,12 +198,12 @@ async function runLighthousePhase(
     const priorCompleted = completedChecks;
     const priorFailed = failedChecks;
 
-    // Fetch, store (R2 + D1) and update progress inside one step. The step
-    // returns only counts; full results live in D1.
+    // Fetch, store (R2 + DB) and update progress inside one step. The step
+    // returns only counts; full results live in the DB.
     const counts = await pgStep(
       step,
       `lighthouse-batch-${lighthouseBatchIndex}`,
-      undefined,
+      LIGHTHOUSE_BATCH_STEP,
       async () => {
         const perUrlResults = await Promise.all(
           batch.map(async ({ url, pageId }) => {
@@ -217,14 +250,22 @@ async function selectLighthousePages(params: {
   step: WorkflowStep;
   auditId: string;
   workflowInstanceId: string;
-  pages: CrawledPageSummary[];
   startUrl: string;
   strategy: AuditConfig["lighthouseStrategy"];
 }) {
-  const { step, auditId, workflowInstanceId, pages, startUrl, strategy } =
-    params;
-  return pgStep(step, "select-lighthouse-sample", undefined, async () => {
-    const sample = selectLighthouseSample(pages, startUrl, strategy);
+  const { step, auditId, workflowInstanceId, startUrl, strategy } = params;
+  return pgStep(step, "select-lighthouse-sample", DB_STEP, async () => {
+    // Crawled pages come from the DB — the crawl phase no longer holds a
+    // whole-crawl page list in memory.
+    const crawledPages = await AuditRepository.getPagesForAudit(auditId);
+    const sample = selectLighthouseSample(
+      crawledPages.map((page) => ({
+        url: page.url,
+        statusCode: page.statusCode ?? 0,
+      })),
+      startUrl,
+      strategy,
+    );
     const selectedUrls = new Set(sample);
 
     await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
@@ -233,7 +274,7 @@ async function selectLighthousePages(params: {
       lighthouseCompleted: 0,
       lighthouseFailed: 0,
     });
-    return pages.flatMap((page) =>
+    return crawledPages.flatMap((page) =>
       selectedUrls.has(page.url) ? [{ url: page.url, pageId: page.id }] : [],
     );
   });
@@ -260,37 +301,34 @@ async function finalizeAudit(args: {
     crawl,
   } = args;
 
-  await pgStep(step, "multipage-checks", undefined, async () => {
+  await pgStep(step, "multipage-checks", MULTIPAGE_CHECKS_STEP, async () => {
     await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
       currentPhase: "finalizing",
     });
 
-    // Integrity guard: pages are persisted inside crawl-batch steps. If the
-    // crawl claims pages but D1 has none (e.g. an instance started under the
-    // pre-incremental-persistence code was replayed under this code), fail
-    // loudly instead of completing with an empty audit.
+    // Integrity guard: pages are persisted inside crawl-chunk steps. If the
+    // crawl claims pages but the DB has none, fail loudly instead of
+    // completing with an empty audit.
     if (
-      crawl.pages.length > 0 &&
+      crawl.pagesCrawled > 0 &&
       !(await AuditRepository.hasPagesForAudit(auditId))
     ) {
       throw new Error(
-        `Audit ${auditId}: crawl reported ${crawl.pages.length} pages but none were persisted`,
+        `Audit ${auditId}: crawl reported ${crawl.pagesCrawled} pages but none were persisted`,
       );
     }
 
-    const issues = await runMultipageChecks({
-      auditId,
-      startUrl,
-      crawlCompleted: crawl.completed,
-    });
+    const issues = await runMultipageChecks({ auditId });
+    issues.push(...(await runScratchpadLinkChecks(auditId, startUrl, crawl)));
     await AuditRepository.insertIssues(auditId, issues);
     return { issueCount: issues.length };
   });
 
-  await pgStep(step, "finalize", undefined, async () => {
+  await pgStep(step, "finalize", DB_STEP, async () => {
+    const blockedPages = await AuditRepository.countBlockedPages(auditId);
     await AuditRepository.completeAudit(auditId, workflowInstanceId, {
-      pagesCrawled: crawl.pages.length,
-      pagesTotal: crawl.pages.length,
+      pagesCrawled: crawl.pagesCrawled,
+      pagesTotal: crawl.pagesCrawled,
     });
     await captureServerEvent({
       distinctId: billingCustomer.userId,
@@ -299,15 +337,49 @@ async function finalizeAudit(args: {
       properties: {
         project_id: projectId,
         status: "completed",
-        pages_crawled: crawl.pages.length,
-        pages_total: crawl.pages.length,
+        pages_crawled: crawl.pagesCrawled,
+        pages_total: crawl.pagesCrawled,
         crawl_completed: crawl.completed,
-        pages_blocked: crawl.pages.filter(
-          (page) => page.fetchClass === "blocked",
-        ).length,
+        pages_blocked: blockedPages,
         run_lighthouse: config.lighthouseStrategy !== "none",
       },
     });
     await AuditProgressKV.clear(auditId);
+    // Crawl scratch state (frontier, links, mirror) is no longer needed.
+    await getAuditScratchpad(auditId).destroy();
   });
+}
+
+/**
+ * The two finalize checks that need link edges run as SQL inside the
+ * audit's scratchpad DO; map their rows onto DetectedIssue.
+ */
+async function runScratchpadLinkChecks(
+  auditId: string,
+  startUrl: string,
+  crawl: CrawlPhaseResult,
+): Promise<DetectedIssue[]> {
+  const scratchpad = getAuditScratchpad(auditId);
+  const { brokenLinks, orphanPages } = await scratchpad.runFinalizeChecks({
+    // Page rows store normalized URLs; normalize the start URL the same way
+    // so the orphan exclusion matches.
+    startUrl: normalizeUrl(startUrl) ?? startUrl,
+    // Orphan detection only makes sense when the crawl wasn't truncated.
+    crawlCompleted: crawl.completed,
+  });
+
+  return [
+    ...brokenLinks.map((row) => ({
+      issueType: "broken-internal-link" as const,
+      pageId: row.sourcePageId,
+      pageUrl: row.sourceUrl,
+      dedupeKey: row.targetUrl,
+      details: { targetUrl: row.targetUrl, targetStatus: row.targetStatus },
+    })),
+    ...orphanPages.map((row) => ({
+      issueType: "orphan-page" as const,
+      pageId: row.pageId,
+      pageUrl: row.url,
+    })),
+  ];
 }

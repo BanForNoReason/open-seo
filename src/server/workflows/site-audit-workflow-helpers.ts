@@ -104,9 +104,8 @@ export async function crawlPage(
 
     const contentType = response.headers.get("content-type") ?? "";
     const isHtml = contentType.includes("text/html");
-    // Large pages make Cheerio disproportionately expensive and can exhaust a
-    // crawl step's CPU or isolate memory. The first 2 MiB still contains the
-    // SEO metadata and navigation needed by the audit in normal documents.
+    // Cap what we read: the first 2 MiB still contains the SEO metadata and
+    // navigation needed by the audit in normal documents.
     const body = isHtml ? await readTextUpTo(response, MAX_HTML_BYTES) : "";
     const fetchClass = classifyFetch(
       statusCode,
@@ -128,10 +127,10 @@ export async function crawlPage(
       });
     }
 
-    // Dynamic import keeps cheerio (page-analyzer's HTML parser) out of the
-    // worker's startup module graph: SiteAuditWorkflow is re-exported from
-    // src/server.ts, so a static import would evaluate cheerio in every
-    // isolate's baseline heap, not just when an audit actually crawls.
+    // Dynamic import keeps the HTML parser out of the worker's startup
+    // module graph: SiteAuditWorkflow is re-exported from src/server.ts, so
+    // a static import would evaluate it in every isolate's baseline heap,
+    // not just when an audit actually crawls.
     const { analyzeHtml } = await import("@/server/lib/audit/page-analyzer");
     const analysis = analyzeHtml(body, url, statusCode, responseTimeMs);
     const robotsDirectives = [analysis.robotsMeta, xRobotsTag]
@@ -171,6 +170,7 @@ export async function crawlPage(
         ? await sha256Hex(analysis.bodyText)
         : null,
       isHtml: true,
+      htmlBytes: body.length,
       imagesTotal: analysis.images.length,
       // Only a truly absent alt attribute counts: alt="" is the correct
       // markup for decorative images.
@@ -270,6 +270,7 @@ function emptyPageResult(input: {
     wordCount: 0,
     contentHash: null,
     isHtml: false,
+    htmlBytes: 0,
     imagesTotal: 0,
     imagesMissingAlt: 0,
     images: [],

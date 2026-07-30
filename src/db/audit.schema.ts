@@ -37,6 +37,13 @@ export const audits = sqliteTable(
     lighthouseCompleted: integer("lighthouse_completed").notNull().default(0),
     lighthouseFailed: integer("lighthouse_failed").notNull().default(0),
     currentPhase: text("current_phase").default("discovery"),
+    // Failure diagnostics; null unless status = "failed". errorCode is a
+    // closed vocabulary (see classifyAuditError) so failures are aggregable;
+    // errorDetail is the raw message, truncated. failedPhase records which
+    // currentPhase the audit was in when it died.
+    errorCode: text("error_code"),
+    errorDetail: text("error_detail"),
+    failedPhase: text("failed_phase"),
     startedAt: text("started_at")
       .notNull()
       .default(sql`(current_timestamp)`),

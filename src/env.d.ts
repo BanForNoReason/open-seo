@@ -12,6 +12,10 @@ declare namespace Cloudflare {
     // Durable Object backing the SAM in-app agent (see wrangler.jsonc).
     SAM_CHAT: DurableObjectNamespace;
 
+    // Durable Object holding per-audit crawl scratch state (frontier, link
+    // edges, page mirror). Untyped here; getAuditScratchpad narrows the stub.
+    AUDIT_SCRATCHPAD: DurableObjectNamespace;
+
     AUTH_MODE?: "cloudflare_access" | "local_noauth" | "hosted";
     BYPASS_EMAIL_VERIFICATION?: string;
     TEAM_DOMAIN?: string;

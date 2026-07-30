@@ -400,8 +400,10 @@ export default Alchemy.Stack(
         // Prod-only: pooled Postgres via the existing Hyperdrive config.
         ...(prod ? { HYPERDRIVE: makeHyperdrive() } : {}),
 
-        // Durable Objects (Agents SDK chat agents). Alchemy backs new DO
-        // classes with SQLite storage, which both require.
+        // Durable Objects (chat agents + the per-audit crawl scratchpad).
+        // Alchemy backs new DO classes with SQLite storage, which all of
+        // them require; the `migrations` array in wrangler.jsonc only
+        // applies to the wrangler/workerd surfaces (local dev, Docker).
         ...Object.fromEntries(
           wrangler.durable_objects.bindings.map((binding) => [
             binding.name,

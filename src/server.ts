@@ -7,6 +7,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
+import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { getAuthMode, isHostedAuthMode } from "@/lib/auth-mode";
@@ -177,6 +178,8 @@ export { RankCheckWorkflow } from "./server/workflows/RankCheckWorkflow";
 export { OnboardingChatAgent } from "./server/features/onboarding/OnboardingChatAgent";
 // Durable Object class for the SAM in-app agent (Agents SDK).
 export { SamChatAgent } from "./server/features/sam/SamChatAgent";
+// Durable Object class for the per-audit crawl scratchpad.
+export { AuditScratchpad } from "./server/features/audit/AuditScratchpad";
 
 export default {
   fetch,
@@ -187,5 +190,8 @@ export default {
   ) {
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
     await withPgClient(() => runScheduledRankChecks(env));
+    // Watchdog: reconcile audits stuck in "running" whose workflow died
+    // without reaching mark-failed (OOM/CPU kills, expired instances).
+    await withPgClient(() => reconcileStaleAudits());
   },
 };
