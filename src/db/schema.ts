@@ -77,7 +77,6 @@ export const {
   backlinkSnapshots,
   audits,
   auditPages,
-  auditLinks,
   auditIssues,
   auditLighthouseResults,
   samSessions,
