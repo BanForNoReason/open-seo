@@ -7,22 +7,28 @@ import type { CrawledPageResult } from "@/server/lib/audit/types";
  * slowly (politeness toward struggling or defensive sites) and grows when
  * the site answers fast.
  */
-export const INITIAL_CRAWL_WINDOW = 25;
+export const INITIAL_CRAWL_WINDOW = 10;
 const MIN_WINDOW = 5;
-const MAX_WINDOW = 40;
+const MAX_WINDOW = 20;
 const SLOW_RESPONSE_MS = 10_000;
 const FAST_RESPONSE_MS = 1_500;
+
 /**
- * Pages at/above this HTML size count as trouble: each in-flight page
- * buffers its body, so a wide window on a heavy-page site is memory
- * pressure the response time can't see (it's measured at headers).
+ * Total HTML the in-flight window may buffer at once. Each in-flight page
+ * holds its body (decoded to a UTF-16 string, roughly doubling it), and the
+ * workflow shares its isolate's 128 MB memory limit with the rest of the
+ * worker — production audits died with exceededMemory when a fast site let
+ * the window grow unchecked.
  */
-const HEAVY_PAGE_BYTES = 1024 * 1024;
+const IN_FLIGHT_HTML_BUDGET_BYTES = 16 * 1024 * 1024;
+/** Floor for the observed page size so tiny-page sites can't void the bound. */
+const MIN_ASSUMED_PAGE_BYTES = 64 * 1024;
 
 /**
  * Adapt the window to the last persisted sub-batch. Shrinks on trouble
- * (errors, blocks, very slow responses, heavy bodies), grows only on a
- * clean and mostly-fast batch.
+ * (errors, blocks, very slow responses), grows only on a clean and mostly
+ * fast batch, and is always capped so the batch's average page size times
+ * the window stays inside the in-flight byte budget.
  */
 export function adjustCrawlWindow(
   windowSize: number,
@@ -32,19 +38,29 @@ export function adjustCrawlWindow(
   const troubled = recent.filter(
     (page) =>
       page.fetchClass !== "ok" ||
-      (page.responseTimeMs ?? 0) >= SLOW_RESPONSE_MS ||
-      page.htmlBytes >= HEAVY_PAGE_BYTES,
+      (page.responseTimeMs ?? 0) >= SLOW_RESPONSE_MS,
   ).length;
+  let next = windowSize;
   if (troubled * 3 >= recent.length) {
-    return Math.max(MIN_WINDOW, Math.floor(windowSize / 2));
+    next = Math.max(MIN_WINDOW, Math.floor(windowSize / 2));
+  } else {
+    const fast = recent.filter(
+      (page) =>
+        page.fetchClass === "ok" &&
+        (page.responseTimeMs ?? Infinity) <= FAST_RESPONSE_MS,
+    ).length;
+    if (troubled === 0 && fast * 2 >= recent.length) {
+      next = Math.min(MAX_WINDOW, windowSize + 5);
+    }
   }
-  const fast = recent.filter(
-    (page) =>
-      page.fetchClass === "ok" &&
-      (page.responseTimeMs ?? Infinity) <= FAST_RESPONSE_MS,
-  ).length;
-  if (troubled === 0 && fast * 2 >= recent.length) {
-    return Math.min(MAX_WINDOW, windowSize + 5);
-  }
-  return windowSize;
+
+  const avgPageBytes = Math.max(
+    recent.reduce((sum, page) => sum + page.htmlBytes, 0) / recent.length,
+    MIN_ASSUMED_PAGE_BYTES,
+  );
+  const byteBound = Math.max(
+    MIN_WINDOW,
+    Math.floor(IN_FLIGHT_HTML_BUDGET_BYTES / avgPageBytes),
+  );
+  return Math.min(next, byteBound);
 }

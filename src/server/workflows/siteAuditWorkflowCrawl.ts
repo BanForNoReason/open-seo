@@ -34,6 +34,13 @@ const CHUNK_TARGET_PAGES = 200;
 const CHUNK_SOFT_DEADLINE_MS = 90_000;
 /** Crawled pages are persisted in sub-batches of this size. */
 const PERSIST_BATCH_SIZE = 25;
+/**
+ * Stop launching new fetches while more than this many persist sub-batches
+ * are waiting: persistence is sequential, so when the DB falls behind a fast
+ * site, unpersisted page results would otherwise pile up in memory without
+ * bound.
+ */
+const MAX_QUEUED_PERSIST_BATCHES = 2;
 
 /**
  * Mega-menu/footer-heavy sites can carry 1000+ links per page; cap what we
@@ -146,24 +153,30 @@ async function runCrawlChunk(
   // Persistence runs concurrently with fetching (pipelined) but sequentially
   // with itself, so DB write pressure stays bounded at one batch at a time.
   let persistChain: Promise<unknown> = Promise.resolve();
+  let queuedPersists = 0;
 
   const flush = () => {
     if (batch.length === 0) return;
     const pages = batch;
     batch = [];
     windowSize = adjustCrawlWindow(windowSize, pages);
-    persistChain = persistChain.then(() =>
-      persistCrawledPages({
-        auditId,
-        workflowInstanceId,
-        origin,
-        robots,
-        scratchpad,
-        pages,
-        depthByUrl,
-        maxPages,
-      }),
-    );
+    queuedPersists += 1;
+    persistChain = persistChain
+      .then(() =>
+        persistCrawledPages({
+          auditId,
+          workflowInstanceId,
+          origin,
+          robots,
+          scratchpad,
+          pages,
+          depthByUrl,
+          maxPages,
+        }),
+      )
+      .finally(() => {
+        queuedPersists -= 1;
+      });
   };
 
   const launch = (entry: ClaimedUrl) => {
@@ -182,14 +195,29 @@ async function runCrawlChunk(
   while (true) {
     while (
       inFlight.size < windowSize &&
+      queuedPersists <= MAX_QUEUED_PERSIST_BATCHES &&
       nextIndex < claimed.length &&
       Date.now() < deadlineAt
     ) {
       launch(claimed[nextIndex]);
       nextIndex += 1;
     }
-    if (inFlight.size === 0) break;
-    await Promise.race(inFlight);
+    if (inFlight.size > 0) {
+      await Promise.race(inFlight);
+      continue;
+    }
+    // Nothing in flight. If launches are only paused by persistence
+    // backpressure, wait for the queue to drain and resume; otherwise the
+    // chunk is done (leases exhausted or soft deadline hit).
+    if (
+      queuedPersists > MAX_QUEUED_PERSIST_BATCHES &&
+      nextIndex < claimed.length &&
+      Date.now() < deadlineAt
+    ) {
+      await persistChain;
+      continue;
+    }
+    break;
   }
   flush();
   await persistChain;

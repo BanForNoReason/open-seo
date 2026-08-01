@@ -51,7 +51,7 @@ function page(
 
 describe("adjustCrawlWindow", () => {
   it("keeps the window on an empty batch", () => {
-    expect(adjustCrawlWindow(25, [])).toBe(25);
+    expect(adjustCrawlWindow(10, [])).toBe(10);
   });
 
   it("halves the window when a third of the batch is troubled", () => {
@@ -74,27 +74,32 @@ describe("adjustCrawlWindow", () => {
 
   it("grows on a clean, fast batch up to the cap", () => {
     const recent = Array.from({ length: 25 }, () => page("ok", 400));
-    expect(adjustCrawlWindow(25, recent)).toBe(30);
-    expect(adjustCrawlWindow(40, recent)).toBe(40);
+    expect(adjustCrawlWindow(10, recent)).toBe(15);
+    expect(adjustCrawlWindow(20, recent)).toBe(20);
   });
 
-  it("treats heavy pages as trouble even when they respond fast", () => {
+  it("caps the window so heavy pages stay inside the byte budget", () => {
+    // 1 MiB average pages: 16 MiB budget / 1 MiB = window of 16.
     const recent = Array.from({ length: 25 }, () =>
-      page("ok", 300, 2 * 1024 * 1024),
+      page("ok", 300, 1024 * 1024),
     );
-    expect(adjustCrawlWindow(25, recent)).toBe(12);
+    expect(adjustCrawlWindow(20, recent)).toBe(16);
   });
 
-  it("does not grow when some pages are heavy", () => {
-    const recent = [
-      ...Array.from({ length: 4 }, () => page("ok", 300, 1024 * 1024)),
-      ...Array.from({ length: 21 }, () => page("ok", 300)),
-    ];
-    expect(adjustCrawlWindow(25, recent)).toBe(25);
+  it("keeps the byte bound at the minimum window even for huge pages", () => {
+    const recent = Array.from({ length: 25 }, () =>
+      page("ok", 300, 4 * 1024 * 1024),
+    );
+    expect(adjustCrawlWindow(20, recent)).toBe(5);
+  });
+
+  it("lets small pages use the full window cap", () => {
+    const recent = Array.from({ length: 25 }, () => page("ok", 400, 10_000));
+    expect(adjustCrawlWindow(20, recent)).toBe(20);
   });
 
   it("holds steady on a clean but slow batch", () => {
     const recent = Array.from({ length: 25 }, () => page("ok", 5_000));
-    expect(adjustCrawlWindow(25, recent)).toBe(25);
+    expect(adjustCrawlWindow(15, recent)).toBe(15);
   });
 });

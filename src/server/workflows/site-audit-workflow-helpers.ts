@@ -6,7 +6,7 @@ import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
 
 const CRAWL_USER_AGENT = "OpenSEO-Audit/1.0";
-const MAX_HTML_BYTES = 2 * 1024 * 1024;
+const MAX_HTML_BYTES = 1024 * 1024;
 
 /**
  * Markers of a bot-mitigation challenge page. We classify these honestly as
@@ -104,7 +104,7 @@ export async function crawlPage(
 
     const contentType = response.headers.get("content-type") ?? "";
     const isHtml = contentType.includes("text/html");
-    // Cap what we read: the first 2 MiB still contains the SEO metadata and
+    // Cap what we read: the first 1 MiB still contains the SEO metadata and
     // navigation needed by the audit in normal documents.
     const body = isHtml ? await readTextUpTo(response, MAX_HTML_BYTES) : "";
     const fetchClass = classifyFetch(
@@ -124,6 +124,9 @@ export async function crawlPage(
         headerCanonicalUrl,
         crawlDepth,
         inSitemap,
+        // The body was still fetched and buffered; report its size so the
+        // crawl window's byte budget sees blocked/error pages too.
+        htmlBytes: body.length,
       });
     }
 
@@ -244,6 +247,7 @@ function emptyPageResult(input: {
   headerCanonicalUrl: string | null;
   crawlDepth: number | null;
   inSitemap: boolean;
+  htmlBytes?: number;
 }): CrawledPageResult {
   return {
     id: crypto.randomUUID(),
@@ -270,7 +274,7 @@ function emptyPageResult(input: {
     wordCount: 0,
     contentHash: null,
     isHtml: false,
-    htmlBytes: 0,
+    htmlBytes: input.htmlBytes ?? 0,
     imagesTotal: 0,
     imagesMissingAlt: 0,
     images: [],
