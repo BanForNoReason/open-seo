@@ -195,10 +195,13 @@ async function runCrawlChunk(
   while (true) {
     while (
       inFlight.size < windowSize &&
-      queuedPersists <= MAX_QUEUED_PERSIST_BATCHES &&
       nextIndex < claimed.length &&
       Date.now() < deadlineAt
     ) {
+      // queuedPersists changes when persistChain settles. Keep it out of the
+      // loop condition because the type-aware linter cannot see that async
+      // mutation and flags the otherwise valid backpressure check.
+      if (queuedPersists > MAX_QUEUED_PERSIST_BATCHES) break;
       launch(claimed[nextIndex]);
       nextIndex += 1;
     }
