@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   index,
   integer,
@@ -389,13 +390,13 @@ export const backlinkSnapshots = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     domain: text("domain").notNull(),
     rank: integer("rank"),
-    backlinks: integer("backlinks"),
-    referringDomains: integer("referring_domains"),
-    brokenBacklinks: integer("broken_backlinks"),
-    newBacklinks: integer("new_backlinks"),
-    lostBacklinks: integer("lost_backlinks"),
-    newReferringDomains: integer("new_referring_domains"),
-    lostReferringDomains: integer("lost_referring_domains"),
+    backlinks: bigint("backlinks", { mode: "number" }),
+    referringDomains: bigint("referring_domains", { mode: "number" }),
+    brokenBacklinks: bigint("broken_backlinks", { mode: "number" }),
+    newBacklinks: bigint("new_backlinks", { mode: "number" }),
+    lostBacklinks: bigint("lost_backlinks", { mode: "number" }),
+    newReferringDomains: bigint("new_referring_domains", { mode: "number" }),
+    lostReferringDomains: bigint("lost_referring_domains", { mode: "number" }),
     capturedAt: timestampColumn("captured_at").notNull().default(isoNow),
   },
   (table) => [
