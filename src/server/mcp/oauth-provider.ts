@@ -20,7 +20,10 @@ import {
   MCP_ROUTE,
   withWorkersOAuthMcpScopes,
 } from "@/server/mcp/context";
-import { normalizeClientRegistrationRequest } from "@/server/mcp/oauth-registration";
+import {
+  normalizeClientRegistrationRequest,
+  withCompatibilityClientSecret,
+} from "@/server/mcp/oauth-registration";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { handleAuthenticatedOpenSeoMcpRequest } from "@/server/mcp/transport";
 import { resolveHostedContext } from "@/middleware/ensure-user/hosted";
@@ -114,10 +117,11 @@ function oauthErrorResponse(error: {
 }) {
   // 401s here are the standard OAuth discovery handshake, not failures: an
   // unauthenticated /mcp hit returns `invalid_token` (which triggers the
-  // client's .well-known discovery), and the DCR client_secret_post shim makes
-  // a client's first token attempt return `invalid_client` before it retries
-  // with the secret. Log those at debug so they stop masquerading as errors;
-  // keep 5xx at error and everything else (bad client metadata, etc.) at warn.
+  // client's .well-known discovery), and clients registered as confidential
+  // before the public-client DCR fix still draw `invalid_client` until they
+  // retry with the secret or re-register. Log those at debug so they stop
+  // masquerading as errors; keep 5xx at error and everything else (bad client
+  // metadata, etc.) at warn.
   const line = `[oauth] ${error.status} ${error.code}: ${error.description}`;
   if (error.status === 401) {
     console.debug(line);
@@ -445,11 +449,17 @@ export function createOpenSeoOAuthProvider(appFetch: AppFetch) {
       const url = new URL(request.url);
 
       if (url.pathname === OAUTH_REGISTER_PATH) {
-        // Cloudflare's provider can reject public DCR clients, but Perplexity
-        // does not appear to retry as confidential and instead expects a
-        // client_secret. Normalize before handing the request to Cloudflare so
-        // it still owns client creation, secret hashing, and token storage.
-        request = await normalizeClientRegistrationRequest(request);
+        // Register secretless MCP clients as true public clients so refresh
+        // grants never require client authentication, then dress the DCR
+        // response as confidential for clients (Perplexity) that reject
+        // responses without a client_secret. Cloudflare still owns client
+        // creation, secret hashing, and token storage.
+        const response = await provider.fetch(
+          await normalizeClientRegistrationRequest(request),
+          env,
+          ctx,
+        );
+        return withCompatibilityClientSecret(response);
       }
 
       return provider.fetch(request, env, ctx);

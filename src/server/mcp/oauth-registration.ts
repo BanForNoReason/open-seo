@@ -1,5 +1,19 @@
-const CONFIDENTIAL_CLIENT_AUTH_METHOD = "client_secret_post";
+import { z } from "zod";
+
+const PUBLIC_CLIENT_AUTH_METHOD = "none";
+const COMPAT_CLIENT_AUTH_METHOD = "client_secret_post";
 const MAX_CLIENT_REGISTRATION_BODY_BYTES = 1024 * 1024;
+
+// Loose so every field the provider cares about survives the round trip; these
+// shims only read the auth method and secret.
+const clientMetadataSchema = z.looseObject({
+  token_endpoint_auth_method: z.string().optional(),
+});
+
+const clientRegistrationSchema = z.looseObject({
+  token_endpoint_auth_method: z.string().optional(),
+  client_secret: z.string().optional(),
+});
 
 export async function normalizeClientRegistrationRequest(request: Request) {
   if (request.method !== "POST") {
@@ -16,7 +30,7 @@ export async function normalizeClientRegistrationRequest(request: Request) {
     return request;
   }
 
-  let clientMetadata: unknown;
+  let rawMetadata: unknown;
   try {
     const text = await request.clone().text();
     if (text.length > MAX_CLIENT_REGISTRATION_BODY_BYTES) {
@@ -25,28 +39,26 @@ export async function normalizeClientRegistrationRequest(request: Request) {
       return request;
     }
 
-    clientMetadata = JSON.parse(text);
+    rawMetadata = JSON.parse(text);
   } catch {
     return request;
   }
 
-  if (!clientMetadata || typeof clientMetadata !== "object") {
+  const parsed = clientMetadataSchema.safeParse(rawMetadata);
+  if (!parsed.success || parsed.data.token_endpoint_auth_method !== undefined) {
     return request;
   }
 
+  // The provider defaults an omitted auth method to client_secret_basic,
+  // which requires client authentication on every grant — including refresh.
+  // MCP clients that discard the secret (Codex did) then lose their session
+  // at first token expiry with "invalid_client: missing client_secret".
+  // Register them as public clients instead; PKCE plus the provider's
+  // grant-to-client binding secure the public-client flow.
   const metadata = {
-    ...clientMetadata,
-  } as Record<string, unknown>;
-
-  if (
-    metadata.token_endpoint_auth_method === undefined ||
-    metadata.token_endpoint_auth_method === "none"
-  ) {
-    // Perplexity registers as a public client but then rejects DCR responses
-    // without a client_secret. Use client_secret_post because its validator
-    // accepts that method but rejects client_secret_basic.
-    metadata.token_endpoint_auth_method = CONFIDENTIAL_CLIENT_AUTH_METHOD;
-  }
+    ...parsed.data,
+    token_endpoint_auth_method: PUBLIC_CLIENT_AUTH_METHOD,
+  };
 
   const headers = new Headers(request.headers);
   headers.set("Content-Type", "application/json");
@@ -56,5 +68,49 @@ export async function normalizeClientRegistrationRequest(request: Request) {
     method: request.method,
     headers,
     body: JSON.stringify(metadata),
+  });
+}
+
+export async function withCompatibilityClientSecret(response: Response) {
+  if (response.status !== 201) {
+    return response;
+  }
+
+  let rawBody: unknown;
+  try {
+    rawBody = await response.clone().json();
+  } catch {
+    return response;
+  }
+
+  const parsed = clientRegistrationSchema.safeParse(rawBody);
+  if (
+    !parsed.success ||
+    parsed.data.token_endpoint_auth_method !== PUBLIC_CLIENT_AUTH_METHOD ||
+    parsed.data.client_secret !== undefined
+  ) {
+    return response;
+  }
+
+  // Perplexity registers as a public client but rejects DCR responses without
+  // a client_secret (its validator accepts client_secret_post but not
+  // client_secret_basic). Dress the response as confidential while the stored
+  // client stays public: the token endpoint skips secret validation for public
+  // clients, so clients that send this placeholder and clients that never
+  // store it both keep working — including refresh grants.
+  const compatBody = {
+    ...parsed.data,
+    token_endpoint_auth_method: COMPAT_CLIENT_AUTH_METHOD,
+    client_secret: crypto.randomUUID().replaceAll("-", ""),
+    client_secret_expires_at: 0,
+    client_secret_issued_at: parsed.data.client_id_issued_at,
+  };
+
+  const headers = new Headers(response.headers);
+  headers.delete("Content-Length");
+
+  return new Response(JSON.stringify(compatBody), {
+    status: response.status,
+    headers,
   });
 }
