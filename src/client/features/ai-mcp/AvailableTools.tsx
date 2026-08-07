@@ -207,10 +207,18 @@ const toolCategories: ToolCategory[] = [
   },
 ];
 
+// Google hasn't approved the GA4 OAuth app yet, so connecting fails.
+// Flip to false once the app is approved.
+const GA4_TOOLS_HIDDEN = true;
+
+const visibleCategories = GA4_TOOLS_HIDDEN
+  ? toolCategories.filter((cat) => cat.label !== "Google Analytics")
+  : toolCategories;
+
 export function AvailableTools() {
   return (
     <div className="grid gap-x-8 gap-y-8 md:grid-cols-2">
-      {toolCategories.map((cat) => (
+      {visibleCategories.map((cat) => (
         <div key={cat.label}>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
             {cat.label}
