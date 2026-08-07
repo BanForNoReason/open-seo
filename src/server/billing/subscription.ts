@@ -63,13 +63,27 @@ export async function getOrCreateOrganizationCustomer(
   return { id: customer.id };
 }
 
-export async function customerHasPaidPlan(customerId: string) {
+export async function customerHasPaidPlan(
+  customerId: string,
+  opts: { retryDenied?: boolean } = {},
+) {
   const result = await autumn.check({
     customerId,
     featureId: AUTUMN_PAID_PLAN_FEATURE_ID,
   });
+  if (result.allowed || !opts.retryDenied) return result.allowed;
 
-  return result.allowed;
+  // Autumn sometimes returns degraded entitlement data in a successful
+  // response (see the balance retry in getUsageCreditsRemaining). Where a
+  // false negative does lasting damage — the scheduler would advance a paying
+  // org's schedule and flag "plan_required" — callers opt into one re-check.
+  // Interactive deny paths skip it to stay fast for genuinely free users.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const retry = await autumn.check({
+    customerId,
+    featureId: AUTUMN_PAID_PLAN_FEATURE_ID,
+  });
+  return retry.allowed;
 }
 
 export async function customerHasManagedAccess(customerId: string) {

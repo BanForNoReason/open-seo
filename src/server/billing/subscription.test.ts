@@ -63,10 +63,24 @@ describe("subscription billing", () => {
     });
   });
 
-  it("returns false when org lacks paid plan", async () => {
+  it("returns false without retrying when org lacks paid plan", async () => {
     checkMock.mockResolvedValue({ allowed: false });
 
     await expect(customerHasPaidPlan("org_123")).resolves.toBe(false);
+    expect(checkMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers from a degraded negative read when retryDenied is set", async () => {
+    vi.useFakeTimers();
+    checkMock
+      .mockResolvedValueOnce({ allowed: false })
+      .mockResolvedValueOnce({ allowed: true });
+
+    const result = customerHasPaidPlan("org_123", { retryDenied: true });
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toBe(true);
+    expect(checkMock).toHaveBeenCalledTimes(2);
   });
 
   it("retries a missing monthly balance once", async () => {

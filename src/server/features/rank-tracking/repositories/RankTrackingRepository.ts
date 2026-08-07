@@ -1,4 +1,15 @@
-import { and, count, desc, eq, inArray, isNull, lte, max } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  max,
+  ne,
+} from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -8,7 +19,8 @@ import {
   rankTrackingKeywords,
   projects,
 } from "@/db/schema";
-import { executeInBatches } from "@/db/runBatch";
+import { DB_BATCH_SIZE, executeInBatches } from "@/db/runBatch";
+import type { RankTrackingSkipReason } from "@/shared/rank-tracking";
 import {
   getLatestSnapshotsForKeywords,
   getSnapshotsBeforeDate,
@@ -104,30 +116,81 @@ async function updateConfig(
 }
 
 async function getDueConfigsWithOrganization(nowIso: string) {
-  return db
-    .select({
-      id: rankTrackingConfigs.id,
-      projectId: rankTrackingConfigs.projectId,
-      domain: rankTrackingConfigs.domain,
-      locationCode: rankTrackingConfigs.locationCode,
-      languageCode: rankTrackingConfigs.languageCode,
-      locationName: rankTrackingConfigs.locationName,
-      devices: rankTrackingConfigs.devices,
-      serpDepth: rankTrackingConfigs.serpDepth,
-      scheduleInterval: rankTrackingConfigs.scheduleInterval,
-      nextCheckAt: rankTrackingConfigs.nextCheckAt,
-      organizationId: projects.organizationId,
+  return (
+    db
+      .select({
+        id: rankTrackingConfigs.id,
+        projectId: rankTrackingConfigs.projectId,
+        domain: rankTrackingConfigs.domain,
+        locationCode: rankTrackingConfigs.locationCode,
+        languageCode: rankTrackingConfigs.languageCode,
+        locationName: rankTrackingConfigs.locationName,
+        devices: rankTrackingConfigs.devices,
+        serpDepth: rankTrackingConfigs.serpDepth,
+        scheduleInterval: rankTrackingConfigs.scheduleInterval,
+        nextCheckAt: rankTrackingConfigs.nextCheckAt,
+        organizationId: projects.organizationId,
+      })
+      .from(rankTrackingConfigs)
+      .innerJoin(projects, eq(rankTrackingConfigs.projectId, projects.id))
+      .where(
+        and(
+          eq(rankTrackingConfigs.isActive, true),
+          // A manual config can keep a stale non-null next_check_at; without this
+          // it would be selected every tick and never advanced.
+          ne(rankTrackingConfigs.scheduleInterval, "manual"),
+          lte(rankTrackingConfigs.nextCheckAt, nowIso),
+          isNull(projects.archivedAt),
+        ),
+      )
+      // Oldest first so a large backlog drains in order instead of the same
+      // arbitrary rows filling every batch. `lte` already excludes NULL, so both
+      // ordering columns are non-null and SQLite/Postgres agree.
+      .orderBy(
+        asc(rankTrackingConfigs.nextCheckAt),
+        asc(rankTrackingConfigs.id),
+      )
+      .limit(200)
+  );
+}
+
+/**
+ * Conditionally advance a due config's schedule, returning false when the
+ * config changed underneath us (manual edit, deactivation).
+ *
+ * `next_check_at` equality is the compare-and-set token. `schedule_interval` is
+ * deliberately absent from the predicate: every schedule edit rewrites
+ * `next_check_at` (updateConfig recomputes it, or nulls it for "manual"), so
+ * the timestamp check already detects interval changes.
+ *
+ * `lastSkipReason` is written only when the caller passes it — the restore
+ * path omits it so it can't clobber a reason the blocking run just wrote.
+ */
+async function claimDueConfig(input: {
+  configId: string;
+  projectId: string;
+  observedNextCheckAt: string;
+  nextCheckAt: string;
+  lastSkipReason?: RankTrackingSkipReason | null;
+}): Promise<boolean> {
+  const claimed = await db
+    .update(rankTrackingConfigs)
+    .set({
+      nextCheckAt: input.nextCheckAt,
+      ...(input.lastSkipReason !== undefined && {
+        lastSkipReason: input.lastSkipReason,
+      }),
     })
-    .from(rankTrackingConfigs)
-    .innerJoin(projects, eq(rankTrackingConfigs.projectId, projects.id))
     .where(
       and(
+        eq(rankTrackingConfigs.id, input.configId),
+        eq(rankTrackingConfigs.projectId, input.projectId),
         eq(rankTrackingConfigs.isActive, true),
-        lte(rankTrackingConfigs.nextCheckAt, nowIso),
-        isNull(projects.archivedAt),
+        eq(rankTrackingConfigs.nextCheckAt, input.observedNextCheckAt),
       ),
     )
-    .limit(50);
+    .returning({ id: rankTrackingConfigs.id });
+  return claimed.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -297,22 +360,7 @@ async function getConfigSummaries(projectId: string) {
   const configs = await getConfigsForProject(projectId);
   if (configs.length === 0) return [];
 
-  // Batch: keyword counts grouped by config
-  const kwCounts = await db
-    .select({
-      configId: rankTrackingKeywords.configId,
-      value: count(),
-    })
-    .from(rankTrackingKeywords)
-    .where(
-      inArray(
-        rankTrackingKeywords.configId,
-        configs.map((c) => c.id),
-      ),
-    )
-    .groupBy(rankTrackingKeywords.configId);
-
-  const kwCountMap = new Map(kwCounts.map((r) => [r.configId, r.value]));
+  const kwCountMap = await getKeywordCountsForConfigs(configs.map((c) => c.id));
 
   // Subquery: latest startedAt per config
   const latestStarted = db
@@ -395,6 +443,22 @@ async function getKeywordCountForConfig(configId: string) {
   return rows[0]?.value ?? 0;
 }
 
+/** Keyword counts keyed by config id. Configs with no keywords are absent. */
+async function getKeywordCountsForConfigs(configIds: string[]) {
+  // Chunked so the IN list stays under D1's ~100 bound-parameter cap.
+  const counts = new Map<string, number>();
+  for (let i = 0; i < configIds.length; i += DB_BATCH_SIZE) {
+    const chunk = configIds.slice(i, i + DB_BATCH_SIZE);
+    const rows = await db
+      .select({ configId: rankTrackingKeywords.configId, value: count() })
+      .from(rankTrackingKeywords)
+      .where(inArray(rankTrackingKeywords.configId, chunk))
+      .groupBy(rankTrackingKeywords.configId);
+    for (const row of rows) counts.set(row.configId, row.value);
+  }
+  return counts;
+}
+
 export const RankTrackingRepository = {
   getConfigsForProject,
   getConfigById,
@@ -402,6 +466,7 @@ export const RankTrackingRepository = {
   createConfig,
   updateConfig,
   getDueConfigsWithOrganization,
+  claimDueConfig,
   tryCreateRun,
   updateRun,
   getRunById,
@@ -414,6 +479,7 @@ export const RankTrackingRepository = {
   removeKeywordsFromConfig,
   updateKeywordMetrics,
   getKeywordCountForConfig,
+  getKeywordCountsForConfigs,
   getConfigSummaries,
   getLatestSnapshotsForKeywords,
   getSnapshotsBeforeDate,

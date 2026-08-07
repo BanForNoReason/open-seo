@@ -111,6 +111,13 @@ type ScheduledRankTrackingInterval = Exclude<
   "manual"
 >;
 
+// Values written to rank_tracking_configs.last_skip_reason (free-form text in
+// the schema; this union keeps writers and UI comparisons in sync).
+export type RankTrackingSkipReason =
+  | "plan_required"
+  | "no_keywords"
+  | "insufficient_credits";
+
 export function estimateScheduledRankCheckCredits(
   keywordCount: number,
   devices: RankTrackingConfig["devices"],

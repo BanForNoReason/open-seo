@@ -91,4 +91,23 @@ describe("rank tracking schedules", () => {
       "2026-03-31T05:30:00.000Z",
     );
   });
+
+  it("preserves the time-of-day anchor for heavily overdue daily schedules", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-10T12:00:00.000Z"));
+
+    expect(computeNextCheckAt("daily", "2026-01-31T05:30:00.000Z")).toBe(
+      "2026-03-11T05:30:00.000Z",
+    );
+  });
+
+  it("preserves the weekday and time anchor for heavily overdue weekly schedules", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-10T12:00:00.000Z"));
+
+    // 2026-01-31 is a Saturday; every advance lands on a Saturday.
+    expect(computeNextCheckAt("weekly", "2026-01-31T05:30:00.000Z")).toBe(
+      "2026-03-14T05:30:00.000Z",
+    );
+  });
 });
