@@ -10,9 +10,24 @@ import {
 
 // Work admitted per tick, in task units (keywords × devices). Admission
 // control, not a hard rate limit: the first start of a tick is always
-// admitted, so an oversized config can never starve. 200 units on the
-// 5-minute cron ≈ 57,600 units/day, ~9× current steady-state demand.
-const SCHEDULED_TASK_UNIT_BUDGET = 200;
+// admitted, so a config bigger than the budget (legal max: 1,000 keywords ×
+// 2 devices = 2,000 units) can never starve. Sized against DataForSEO's
+// 2,000 requests/min account cap, where task_get polling is the binding
+// term: one call per unit per poll round, rounds wake synchronized per tick,
+// and up to three ticks' ~15-minute poll windows overlap the */5 cron — so a
+// full tick can burst ~1,000 polls into a single minute, stacking with the
+// residual rounds of the two prior ticks. Overruns aren't
+// loud failures: throttled polls age into the live fallback at ~3× cost,
+// billed to the customer, so keep real headroom under the cap.
+// 1,000/tick ≈ 288,000 units/day, ~45× steady-state demand — it only binds
+// during backlog catch-up.
+const SCHEDULED_TASK_UNIT_BUDGET = 1000;
+
+// Wall-clock guard for the per-config loop: sub-hourly crons are killed at 15
+// minutes, and a skip-heavy tick pays serial Autumn round-trips per distinct
+// org (worst case minutes, more when Autumn is degraded). Stopping early is
+// safe — unprocessed configs stay due and the next tick resumes oldest-first.
+const TICK_DEADLINE_MS = 3 * 60_000;
 
 // Cap on the per-tick list of configs blocked by an active run. Blocked
 // configs leave no durable trace on their row, so the summary names them.
@@ -43,9 +58,11 @@ export async function runScheduledRankChecks(env: Env) {
     return check;
   };
 
+  const deadline = Date.now() + TICK_DEADLINE_MS;
   let unitsStarted = 0;
   let started = 0;
   let stoppedByBudget = false;
+  let stoppedByDeadline = false;
   let skippedFree = 0;
   let skippedNoKeywords = 0;
   let concurrentChangeSkips = 0;
@@ -56,6 +73,10 @@ export async function runScheduledRankChecks(env: Env) {
   let configErrors = 0;
 
   for (const config of dueConfigs) {
+    if (Date.now() >= deadline) {
+      stoppedByDeadline = true;
+      break;
+    }
     // Per-config containment: one bad row (e.g. malformed next_check_at, which
     // sorts first and would head every scan) or transient DB error must not
     // starve the rest of the tick or suppress the summary log.
@@ -219,6 +240,7 @@ export async function runScheduledRankChecks(env: Env) {
     unitsStarted,
     budget: SCHEDULED_TASK_UNIT_BUDGET,
     stoppedByBudget,
+    stoppedByDeadline,
     skippedFree,
     skippedNoKeywords,
     concurrentChangeSkips,

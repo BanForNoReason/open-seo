@@ -188,15 +188,20 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ) {
-    // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
-    // Caught so a rank-tracking failure can't suppress the audit watchdog below.
+    // Watchdog first: reconcile audits stuck in "running" whose workflow died
+    // without reaching mark-failed (OOM/CPU kills, expired instances). Runs
+    // before the rank loop so a slow tick can't delay or starve it. Its
+    // failure is held until after the rank checks so it can't suppress them,
+    // then rethrown so the invocation still reports as failed.
+    let watchdogError: unknown;
     try {
-      await withPgClient(() => runScheduledRankChecks(env));
+      await withPgClient(() => reconcileStaleAudits());
     } catch (err) {
-      console.error("[cron] Scheduled rank checks failed:", err);
+      watchdogError = err;
+      console.error("[cron] Stale-audit reconcile failed:", err);
     }
-    // Watchdog: reconcile audits stuck in "running" whose workflow died
-    // without reaching mark-failed (OOM/CPU kills, expired instances).
-    await withPgClient(() => reconcileStaleAudits());
+    // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
+    await withPgClient(() => runScheduledRankChecks(env));
+    if (watchdogError) throw watchdogError;
   },
 };

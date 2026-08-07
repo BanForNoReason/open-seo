@@ -115,6 +115,11 @@ async function updateConfig(
     );
 }
 
+// Caps per-tick loop work (claims, per-org plan checks) against the cron
+// wall clock; paid-heavy ticks are stopped earlier by the unit budget and
+// slow ticks by TICK_DEADLINE_MS in scheduledRankChecks.ts.
+const DUE_CONFIGS_PER_TICK = 500;
+
 async function getDueConfigsWithOrganization(nowIso: string) {
   return (
     db
@@ -150,7 +155,7 @@ async function getDueConfigsWithOrganization(nowIso: string) {
         asc(rankTrackingConfigs.nextCheckAt),
         asc(rankTrackingConfigs.id),
       )
-      .limit(200)
+      .limit(DUE_CONFIGS_PER_TICK)
   );
 }
 

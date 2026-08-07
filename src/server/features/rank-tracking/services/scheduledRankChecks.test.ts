@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_KEYWORDS_PER_CONFIG } from "@/shared/rank-tracking";
 
 type DueConfigRow = {
   id: string;
@@ -177,15 +178,16 @@ describe("runScheduledRankChecks", () => {
   });
 
   it("stops admitting configs once the task-unit budget is spent", async () => {
-    // 400 keywords × 2 devices = 800 units — admitted anyway as the tick's
-    // first start (oversized exemption), then exhausts the 200-unit budget.
+    // A legal-max config (MAX_KEYWORDS_PER_CONFIG × both devices) exceeds the
+    // whole budget but is admitted as the tick's first start (oversized
+    // exemption); the next config then hits the budget stop.
     mocks.getDueConfigsWithOrganization.mockResolvedValue([
       dueConfig({ id: "config_big" }),
       dueConfig({ id: "config_next", nextCheckAt: "2026-01-02T00:00:00.000Z" }),
     ]);
     mocks.getKeywordCountsForConfigs.mockResolvedValue(
       new Map([
-        ["config_big", 400],
+        ["config_big", MAX_KEYWORDS_PER_CONFIG],
         ["config_next", 5],
       ]),
     );
@@ -198,7 +200,10 @@ describe("runScheduledRankChecks", () => {
     expect(mocks.claimDueConfig).toHaveBeenCalledTimes(1);
     expect(mocks.customerHasPaidPlan).toHaveBeenCalledTimes(1);
     expect(logSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ stoppedByBudget: true, unitsStarted: 800 }),
+      expect.objectContaining({
+        stoppedByBudget: true,
+        unitsStarted: MAX_KEYWORDS_PER_CONFIG * 2,
+      }),
     );
   });
 
@@ -252,8 +257,9 @@ describe("runScheduledRankChecks", () => {
   });
 
   it("defers a config whose units would overflow the remaining budget", async () => {
-    // First config fits (10 units); the second would overflow (800), so it is
-    // deferred rather than admitted just because budget remains.
+    // First config fits (10 units); the second (legal-max, over the whole
+    // budget) would overflow, so it is deferred rather than admitted just
+    // because budget remains.
     mocks.getDueConfigsWithOrganization.mockResolvedValue([
       dueConfig({ id: "config_small" }),
       dueConfig({ id: "config_big", nextCheckAt: "2026-01-02T00:00:00.000Z" }),
@@ -261,7 +267,7 @@ describe("runScheduledRankChecks", () => {
     mocks.getKeywordCountsForConfigs.mockResolvedValue(
       new Map([
         ["config_small", 5],
-        ["config_big", 400],
+        ["config_big", MAX_KEYWORDS_PER_CONFIG],
       ]),
     );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -274,6 +280,26 @@ describe("runScheduledRankChecks", () => {
     );
     expect(logSpy).toHaveBeenCalledWith(
       expect.objectContaining({ stoppedByBudget: true, unitsStarted: 10 }),
+    );
+  });
+
+  it("stops the tick at the wall-clock deadline instead of running long", async () => {
+    mocks.getDueConfigsWithOrganization.mockResolvedValue([
+      dueConfig({ id: "config_1" }),
+      dueConfig({ id: "config_2", nextCheckAt: "2026-01-02T00:00:00.000Z" }),
+    ]);
+    const start = Date.now();
+    vi.spyOn(Date, "now")
+      .mockReturnValueOnce(start) // deadline anchor
+      .mockReturnValue(start + 4 * 60_000); // every later check is past it
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runTick();
+
+    expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
+    expect(mocks.claimDueConfig).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ stoppedByDeadline: true, started: 0 }),
     );
   });
 
