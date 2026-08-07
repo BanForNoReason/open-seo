@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AUTUMN_PAID_PLAN_FEATURE_ID } from "@/shared/billing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  AUTUMN_PAID_PLAN_FEATURE_ID,
+  AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
+} from "@/shared/billing";
 
 const { checkMock, getOrCreateMock, kvGetMock, kvPutMock } = vi.hoisted(() => ({
   checkMock: vi.fn(),
@@ -32,6 +36,7 @@ vi.mock("@/server/lib/posthog", () => ({
 }));
 
 import {
+  assertUsageCreditsAvailable,
   customerHasPaidPlan,
   getOrCreateOrganizationCustomer,
 } from "./subscription";
@@ -41,6 +46,10 @@ describe("subscription billing", () => {
     vi.clearAllMocks();
     kvGetMock.mockResolvedValue(null);
     kvPutMock.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("checks the paid plan entitlement", async () => {
@@ -58,6 +67,45 @@ describe("subscription billing", () => {
     checkMock.mockResolvedValue({ allowed: false });
 
     await expect(customerHasPaidPlan("org_123")).resolves.toBe(false);
+  });
+
+  it("retries a missing monthly balance once", async () => {
+    vi.useFakeTimers();
+    let monthlyChecks = 0;
+    checkMock.mockImplementation(
+      async ({ featureId }: { featureId: string }) => {
+        if (featureId === AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID) {
+          return { balance: null };
+        }
+        if (featureId === AUTUMN_SEO_DATA_BALANCE_FEATURE_ID) {
+          monthlyChecks += 1;
+          return monthlyChecks === 1
+            ? { balance: null }
+            : { balance: { remaining: 250 } };
+        }
+        throw new Error(`Unexpected feature ${featureId}`);
+      },
+    );
+
+    const result = assertUsageCreditsAvailable("org_123");
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toEqual({ monthlyRemaining: 250 });
+    expect(monthlyChecks).toBe(2);
+  });
+
+  it("fails closed when the retry still has no monthly balance", async () => {
+    vi.useFakeTimers();
+    checkMock.mockResolvedValue({ balance: null });
+
+    const result = assertUsageCreditsAvailable("org_123");
+    const assertion = expect(result).rejects.toMatchObject({
+      code: "UPSTREAM_UNAVAILABLE",
+    });
+    await vi.runAllTimersAsync();
+
+    await assertion;
+    expect(checkMock).toHaveBeenCalledTimes(3);
   });
 
   it("looks up the billing customer by organization id", async () => {

@@ -96,13 +96,26 @@ async function getUsageCreditsRemaining(customerId: string): Promise<{
     }),
   ]);
 
+  // Autumn sometimes returns a successful response with no monthly balance
+  // for a customer that holds the feature. Retry that read once because the
+  // SDK's retry policy only covers failed HTTP requests.
+  let monthlyBalance = monthlyCheck.balance;
+  if (!monthlyBalance) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const retry = await autumn.check({
+      customerId,
+      featureId: AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+    });
+    monthlyBalance = retry.balance;
+  }
+
   // Every hosted org holds the monthly feature (the free plan is the Autumn
   // default, attached at customer creation), so a check with no balance data
   // is a broken read, not an empty wallet. Throwing keeps it out of the
   // credit math — coercing it to 0 once locked a paying customer with ~9k
   // credits out of chat (2026-07-20). The topup balance genuinely doesn't
   // exist until a first top-up, so 0 is the honest reading there.
-  if (!monthlyCheck.balance) {
+  if (!monthlyBalance) {
     throw new AppError(
       "UPSTREAM_UNAVAILABLE",
       `Autumn check returned no ${AUTUMN_SEO_DATA_BALANCE_FEATURE_ID} balance for customer ${customerId}`,
@@ -110,7 +123,7 @@ async function getUsageCreditsRemaining(customerId: string): Promise<{
   }
 
   return {
-    monthlyRemaining: monthlyCheck.balance.remaining,
+    monthlyRemaining: monthlyBalance.remaining,
     topupRemaining: topupCheck.balance?.remaining ?? 0,
   };
 }
