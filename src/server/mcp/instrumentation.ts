@@ -19,6 +19,10 @@ type ToolHandler<TArgs> = (
   extra: ToolExtra,
 ) => CallToolResult | Promise<CallToolResult>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Usage analytics for every MCP tool invocation. `clientId` distinguishes
  * external MCP clients (OAuth) from the in-app agent (first-party auth, null
@@ -29,7 +33,14 @@ type ToolHandler<TArgs> = (
 function captureMcpToolCall(
   toolName: string,
   extra: ToolExtra,
-  outcome: { success: boolean; errorCode?: string },
+  outcome: {
+    success: boolean;
+    errorCode?: string;
+    durationMs?: number;
+    projectId?: string;
+    rowCount?: number;
+    quotaRemaining?: number;
+  },
 ) {
   waitUntil(incrementSelfHostMcpToolCallCount());
 
@@ -46,6 +57,10 @@ function captureMcpToolCall(
           error_code: outcome.errorCode,
           client_id: auth.clientId,
           source: auth.clientId ? "mcp_client" : "in_app_agent",
+          duration_ms: outcome.durationMs,
+          project_id: outcome.projectId,
+          row_count: outcome.rowCount,
+          quota_remaining: outcome.quotaRemaining,
         },
       }),
     );
@@ -76,6 +91,7 @@ export function instrumentMcpToolHandler<TArgs>(
   const normalizedOutputSchema = normalizeObjectSchema(outputSchema);
 
   return async (args, extra) => {
+    const startedAt = performance.now();
     try {
       const result = await handler(args, extra);
       // The SDK converts an output-schema mismatch into a client-visible
@@ -108,19 +124,61 @@ export function instrumentMcpToolHandler<TArgs>(
           );
         }
       }
+      const structured = result.structuredContent;
+      const returnedFailure =
+        structured?.status === "error" || structured?.ok === false;
+      const returnedError =
+        structured?.status === "error" && isRecord(structured.error)
+          ? structured.error.code
+          : undefined;
+      const returnedReason =
+        structured?.ok === false ? structured.reason : undefined;
+      const meta = isRecord(structured?.meta) ? structured.meta : undefined;
+      const quota = isRecord(structured?.quota) ? structured.quota : undefined;
+      const tokensPerDay = isRecord(quota?.tokensPerDay)
+        ? quota.tokensPerDay
+        : undefined;
+      const returnedFailureCode =
+        typeof returnedError === "string"
+          ? returnedError
+          : typeof returnedReason === "string"
+            ? returnedReason
+            : undefined;
+      const succeeded =
+        !result.isError && !outputValidationFailed && !returnedFailure;
       captureMcpToolCall(
         toolName,
         extra,
         outputValidationFailed
-          ? { success: false, errorCode: "MCP_OUTPUT_VALIDATION" }
-          : { success: !result.isError },
+          ? {
+              success: false,
+              errorCode: "MCP_OUTPUT_VALIDATION",
+              durationMs: Math.round(performance.now() - startedAt),
+            }
+          : {
+              success: succeeded,
+              errorCode: returnedFailureCode,
+              durationMs: Math.round(performance.now() - startedAt),
+              projectId:
+                typeof meta?.projectId === "string"
+                  ? meta.projectId
+                  : undefined,
+              rowCount:
+                typeof structured?.rowCount === "number"
+                  ? structured.rowCount
+                  : undefined,
+              quotaRemaining:
+                typeof tokensPerDay?.remaining === "number"
+                  ? tokensPerDay.remaining
+                  : undefined,
+            },
       );
       // Dashboard activation milestone: a successful call from an external
       // MCP client (OAuth clientId; SAM and the self-hosted transport are
       // first-party with clientId null). Awaited so the write stays inside
       // the request's DB scope; a per-isolate memo keeps this off the hot
       // path after the first call.
-      if (!result.isError && !outputValidationFailed) {
+      if (succeeded) {
         try {
           const auth = getAuth(extra);
           if (auth.clientId) {
@@ -136,6 +194,7 @@ export function instrumentMcpToolHandler<TArgs>(
       captureMcpToolCall(toolName, extra, {
         success: false,
         errorCode: appError?.code ?? "INTERNAL_ERROR",
+        durationMs: Math.round(performance.now() - startedAt),
       });
       if (shouldCaptureAppErrorCode(appError?.code)) {
         console.error(`mcp.tool error (${toolName}):`, error);

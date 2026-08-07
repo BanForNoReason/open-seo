@@ -373,6 +373,9 @@ export const projectActivationState = pgTable("project_activation_state", {
   // without faking the org-level first-tool-call milestone, which stays
   // truthful and self-heals when a real external call lands.
   mcpCardDismissedAt: timestampColumn("mcp_card_dismissed_at"),
+  // Optional integration pitch: hiding it from the dashboard does not remove
+  // the GA4 connection controls from Project Settings.
+  ga4CardDismissedAt: timestampColumn("ga4_card_dismissed_at"),
   updatedAt: timestampColumn("updated_at").notNull().default(isoNow),
 });
 

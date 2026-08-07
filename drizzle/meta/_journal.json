@@ -274,6 +274,13 @@
       "when": 1784610563184,
       "tag": "0038_happy_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1786066274811,
+      "tag": "0039_ga4_connections",
+      "breakpoints": true
     }
   ]
 }

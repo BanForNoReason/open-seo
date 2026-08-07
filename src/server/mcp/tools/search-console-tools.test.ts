@@ -1,41 +1,24 @@
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolExtra } from "@/server/mcp/context";
-import { MCP_AUTH_CONTEXT_PROP } from "@/server/mcp/context";
+import { GscApiError, GscNotConnectedError } from "@/server/lib/gscErrors";
+import * as searchConsoleTools from "./search-console-tools";
+import { makeToolExtra } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
   isHostedServerAuthMode: vi.fn(),
-  hasSelfHostedGscConfig: vi.fn(),
+  hasSelfHostedGoogleOAuthConfig: vi.fn(),
   GscService: {
     getPerformance: vi.fn(),
     inspectUrls: vi.fn(),
   },
 }));
 
-class GscNotConnectedError extends Error {
-  constructor(public readonly projectId: string) {
-    super("not connected");
-    this.name = "GscNotConnectedError";
-  }
-}
-class GscApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "GscApiError";
-  }
-}
-class GscTokenError extends Error {}
-
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: mocks.isHostedServerAuthMode,
 }));
-vi.mock("@/server/features/gsc/oauth-config", () => ({
-  hasSelfHostedGscConfig: mocks.hasSelfHostedGscConfig,
+vi.mock("@/server/features/google/oauth-config", () => ({
+  hasSelfHostedGoogleOAuthConfig: mocks.hasSelfHostedGoogleOAuthConfig,
 }));
 vi.mock("@/server/features/projects/services/ProjectService", () => ({
   ProjectService: {
@@ -44,49 +27,18 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
 }));
 vi.mock("@/server/features/gsc/services/GscService", () => ({
   GscService: mocks.GscService,
-  GscNotConnectedError,
 }));
-vi.mock("@/server/lib/gscClient", () => ({ GscApiError, GscTokenError }));
-
-const authContext = {
-  userId: "user_123",
-  userEmail: "alice@example.com",
-  organizationId: "org_123",
-  clientId: "client_123",
-  scopes: ["mcp"],
-  audience: "https://open-seo.test/mcp",
-  subject: "user_123",
-  baseUrl: "https://open-seo.test",
-};
-
-const toolExtra: ToolExtra = {
-  signal: new AbortController().signal,
-  requestId: 1,
-  sendNotification: vi.fn(),
-  sendRequest: vi.fn(),
-  authInfo: {
-    token: "token",
-    clientId: "client_123",
-    scopes: ["mcp"],
-    resource: new URL("https://open-seo.test/mcp"),
-    extra: { [MCP_AUTH_CONTEXT_PROP]: authContext },
-  } satisfies AuthInfo,
-};
+const toolExtra = makeToolExtra();
 
 describe("search console MCP tools", () => {
   beforeEach(() => {
-    mocks.getProjectForOrganization.mockReset();
     mocks.getProjectForOrganization.mockResolvedValue({
       id: "project_1",
       locationCode: 2840,
       languageCode: "en",
     });
-    mocks.isHostedServerAuthMode.mockReset();
     mocks.isHostedServerAuthMode.mockResolvedValue(true);
-    mocks.hasSelfHostedGscConfig.mockReset();
-    mocks.hasSelfHostedGscConfig.mockResolvedValue(false);
-    mocks.GscService.getPerformance.mockReset();
-    mocks.GscService.inspectUrls.mockReset();
+    mocks.hasSelfHostedGoogleOAuthConfig.mockResolvedValue(false);
   });
 
   it("returns performance rows on success and passes filters through", async () => {
@@ -109,8 +61,7 @@ describe("search console MCP tools", () => {
         },
       ],
     });
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       {
@@ -156,8 +107,7 @@ describe("search console MCP tools", () => {
     mocks.GscService.getPerformance.mockRejectedValue(
       new GscNotConnectedError("project_1"),
     );
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
@@ -179,8 +129,7 @@ describe("search console MCP tools", () => {
     mocks.GscService.getPerformance.mockRejectedValue(
       new GscApiError(403, "no access"),
     );
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
@@ -198,8 +147,7 @@ describe("search console MCP tools", () => {
   });
 
   it("rejects searchAppearance combined with another dimension", async () => {
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1", dimensions: ["query", "searchAppearance"] },
@@ -213,8 +161,7 @@ describe("search console MCP tools", () => {
   });
 
   it("rejects a half-specified explicit date range", async () => {
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1", startDate: "2026-01-01" },
@@ -229,9 +176,8 @@ describe("search console MCP tools", () => {
 
   it("returns a setup message in self-hosted mode without a Google client", async () => {
     mocks.isHostedServerAuthMode.mockResolvedValue(false);
-    mocks.hasSelfHostedGscConfig.mockResolvedValue(false);
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    mocks.hasSelfHostedGoogleOAuthConfig.mockResolvedValue(false);
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
@@ -246,7 +192,7 @@ describe("search console MCP tools", () => {
 
   it("allows performance queries in self-hosted mode with a Google client", async () => {
     mocks.isHostedServerAuthMode.mockResolvedValue(false);
-    mocks.hasSelfHostedGscConfig.mockResolvedValue(true);
+    mocks.hasSelfHostedGoogleOAuthConfig.mockResolvedValue(true);
     mocks.GscService.getPerformance.mockResolvedValue({
       siteUrl: "https://example.com/",
       connectedBy: "alice@example.com",
@@ -258,8 +204,7 @@ describe("search console MCP tools", () => {
       },
       rows: [],
     });
-    const { getSearchConsolePerformanceTool } =
-      await import("./search-console-tools");
+    const { getSearchConsolePerformanceTool } = searchConsoleTools;
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
@@ -290,7 +235,7 @@ describe("search console MCP tools", () => {
         },
       ],
     });
-    const { inspectUrlsTool } = await import("./search-console-tools");
+    const { inspectUrlsTool } = searchConsoleTools;
 
     const result = await inspectUrlsTool.handler(
       {
@@ -319,7 +264,7 @@ describe("search console MCP tools", () => {
     mocks.GscService.inspectUrls.mockRejectedValue(
       new GscNotConnectedError("project_1"),
     );
-    const { inspectUrlsTool } = await import("./search-console-tools");
+    const { inspectUrlsTool } = searchConsoleTools;
 
     const result = await inspectUrlsTool.handler(
       { projectId: "project_1", urls: ["https://example.com/a"] },
@@ -334,8 +279,8 @@ describe("search console MCP tools", () => {
 
   it("returns a setup message for inspect_urls in self-hosted mode without a Google client", async () => {
     mocks.isHostedServerAuthMode.mockResolvedValue(false);
-    mocks.hasSelfHostedGscConfig.mockResolvedValue(false);
-    const { inspectUrlsTool } = await import("./search-console-tools");
+    mocks.hasSelfHostedGoogleOAuthConfig.mockResolvedValue(false);
+    const { inspectUrlsTool } = searchConsoleTools;
 
     const result = await inspectUrlsTool.handler(
       { projectId: "project_1", urls: ["https://example.com/a"] },

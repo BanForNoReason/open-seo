@@ -1,6 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { instrumentMcpToolHandler } from "./instrumentation";
 import {
   runWithMcpToolAuthContext,
   type McpToolAuthContext,
@@ -60,15 +61,9 @@ const authContext: McpToolAuthContext = {
 };
 
 describe("instrumentMcpToolHandler", () => {
-  beforeEach(() => {
-    mocks.captureServerError.mockReset();
-    mocks.captureServerEvent.mockReset();
-    mocks.recordExternalMcpToolCall.mockReset();
-    mocks.incrementSelfHostMcpToolCallCount.mockReset();
-  });
+  beforeEach(() => {});
 
   it("passes a valid result through without reporting", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: [{ domain: "example.com" }] }),
     );
@@ -82,7 +77,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("reports an output schema mismatch the SDK would silently reject", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: "not-an-array" }),
     );
@@ -97,7 +91,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("reports and rethrows a reportable handler error", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const boom = new Error("upstream exploded");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () => {
       throw boom;
@@ -109,7 +102,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("rethrows expected errors without reporting them", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () => {
       throw new AppError("NOT_FOUND");
     });
@@ -119,7 +111,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("captures a usage event when auth context is present", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: [] }),
     );
@@ -142,7 +133,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("marks schema-rejected results as failed usage", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: "not-an-array" }),
     );
@@ -155,8 +145,43 @@ describe("instrumentMcpToolHandler", () => {
     });
   });
 
+  it("marks a structured tool error as failed usage without recording activation", async () => {
+    const schema = z.object({
+      status: z.enum(["ok", "error"]),
+      error: z.object({ code: z.string() }).optional(),
+    });
+    const wrapped = instrumentMcpToolHandler("demo", schema, async () =>
+      okResult({ status: "error", error: { code: "ga4_not_connected" } }),
+    );
+
+    await runWithMcpToolAuthContext(authContext, () => wrapped({}, toolExtra));
+
+    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+      event: "mcp:tool_call",
+      properties: { success: false, error_code: "ga4_not_connected" },
+    });
+    expect(mocks.recordExternalMcpToolCall).not.toHaveBeenCalled();
+  });
+
+  it("marks an ok-false tool result as failed usage", async () => {
+    const schema = z.object({
+      ok: z.boolean(),
+      reason: z.string().optional(),
+    });
+    const wrapped = instrumentMcpToolHandler("demo", schema, async () =>
+      okResult({ ok: false, reason: "audit_not_ready" }),
+    );
+
+    await runWithMcpToolAuthContext(authContext, () => wrapped({}, toolExtra));
+
+    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+      event: "mcp:tool_call",
+      properties: { success: false, error_code: "audit_not_ready" },
+    });
+    expect(mocks.recordExternalMcpToolCall).not.toHaveBeenCalled();
+  });
+
   it("captures a failed usage event with the error code", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () => {
       throw new AppError("NOT_FOUND");
     });
@@ -172,7 +197,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("skips the usage event when auth context is missing", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: [] }),
     );
@@ -184,7 +208,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("records the activation milestone for a successful external call", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: [] }),
     );
@@ -197,7 +220,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("skips the activation milestone for first-party (null clientId) calls", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () =>
       okResult({ items: [] }),
     );
@@ -210,7 +232,6 @@ describe("instrumentMcpToolHandler", () => {
   });
 
   it("skips the activation milestone when the call fails", async () => {
-    const { instrumentMcpToolHandler } = await import("./instrumentation");
     const wrapped = instrumentMcpToolHandler("demo", outputSchema, async () => {
       throw new AppError("NOT_FOUND");
     });

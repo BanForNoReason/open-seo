@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { captureClientEvent } from "@/client/lib/posthog";
+import { Ga4ConnectCard } from "@/client/features/dashboard/Ga4ConnectCard";
 import {
   computeNextStep,
   isStepDone,
@@ -297,6 +298,7 @@ export function DashboardPage({ projectId }: { projectId: string }) {
 
   const showBacklinks = activation.domain !== null;
   const gscConnected = activation.gsc.connected;
+  const ga4Connected = activation.ga4.connected;
 
   return (
     <div className="px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">
@@ -330,6 +332,20 @@ export function DashboardPage({ projectId }: { projectId: string }) {
               hasData: gscConnected,
               node: <GscCard projectId={projectId} connected={gscConnected} />,
             },
+            ...(ga4Connected || !activation.ga4.cardDismissedAt
+              ? [
+                  {
+                    key: "ga4",
+                    hasData: ga4Connected,
+                    node: (
+                      <Ga4ConnectCard
+                        projectId={projectId}
+                        connected={ga4Connected}
+                      />
+                    ),
+                  },
+                ]
+              : []),
             {
               key: "audit",
               hasData: overview?.audit != null,

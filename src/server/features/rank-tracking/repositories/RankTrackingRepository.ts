@@ -135,7 +135,7 @@ async function getDueConfigsWithOrganization(nowIso: string) {
 // ---------------------------------------------------------------------------
 
 /**
- * Try to insert a new pending run. Returns true if inserted, false if blocked
+ * Try to insert a new pending run. Returns true when inserted, or false if blocked
  * by the partial unique index on (config_id) WHERE status IN ('pending',
  * 'running') — i.e. another active run exists for this config.
  *
@@ -148,13 +148,13 @@ async function tryCreateRun(data: {
   projectId: string;
   keywordsTotal: number;
   isSubsetRun?: boolean;
-}): Promise<boolean> {
+}) {
   const inserted = await db
     .insert(rankCheckRuns)
     .values({ ...data, status: "pending" })
     .onConflictDoNothing()
     .returning({ id: rankCheckRuns.id });
-  return inserted.length > 0;
+  return Boolean(inserted[0]);
 }
 
 async function updateRun(
@@ -249,23 +249,48 @@ async function getKeywordsForConfig(configId: string) {
 async function addKeywordsToConfig(
   keywords: Array<{ id: string; configId: string; keyword: string }>,
 ) {
-  await executeInBatches(keywords, (tx, kw) =>
-    tx.insert(rankTrackingKeywords).values(kw).onConflictDoNothing(),
-  );
+  const insertedIds: string[] = [];
+
+  // Keep each statement below D1's bound-parameter limit and return only rows
+  // that actually won the unique(config_id, keyword) race.
+  const insertBatchSize = 25;
+  for (let i = 0; i < keywords.length; i += insertBatchSize) {
+    const chunk = keywords.slice(i, i + insertBatchSize);
+    const inserted = await db
+      .insert(rankTrackingKeywords)
+      .values(chunk)
+      .onConflictDoNothing()
+      .returning({ id: rankTrackingKeywords.id });
+    insertedIds.push(...inserted.map((row) => row.id));
+  }
+
+  return insertedIds;
 }
 
 async function removeKeywordsFromConfig(
   keywordIds: string[],
   configId: string,
 ) {
-  await db
-    .delete(rankTrackingKeywords)
-    .where(
-      and(
-        inArray(rankTrackingKeywords.id, keywordIds),
-        eq(rankTrackingKeywords.configId, configId),
-      ),
-    );
+  if (keywordIds.length === 0) return [];
+
+  const removedIds: string[] = [];
+  // One extra bind is used by configId; keep each IN list below D1's ~100
+  // parameter ceiling while preserving the config ownership predicate.
+  const deleteBatchSize = 90;
+  for (let i = 0; i < keywordIds.length; i += deleteBatchSize) {
+    const chunk = keywordIds.slice(i, i + deleteBatchSize);
+    const removed = await db
+      .delete(rankTrackingKeywords)
+      .where(
+        and(
+          inArray(rankTrackingKeywords.id, chunk),
+          eq(rankTrackingKeywords.configId, configId),
+        ),
+      )
+      .returning({ id: rankTrackingKeywords.id });
+    removedIds.push(...removed.map((row) => row.id));
+  }
+  return removedIds;
 }
 
 async function getConfigSummaries(projectId: string) {

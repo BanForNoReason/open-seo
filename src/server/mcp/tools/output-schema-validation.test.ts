@@ -2,10 +2,11 @@ import {
   normalizeObjectSchema,
   safeParseAsync,
 } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { ToolExtra } from "@/server/mcp/context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MCP_AUTH_CONTEXT_PROP } from "@/server/mcp/context";
+import { AppError } from "@/server/lib/errors";
+import * as researchTools from "./dataforseo-research-tools";
+import { getBacklinksProfileTool } from "./get-backlinks-profile";
+import { makeMcpAuthContext, makeToolExtra } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -41,32 +42,12 @@ class ProviderRow {
   ) {}
 }
 
-const authContext = {
-  userId: "user_123",
-  userEmail: "team@example.com",
-  organizationId: "org_123",
-  clientId: "client_123",
-  scopes: ["mcp"],
-  audience: "open-seo",
-  subject: "user_123",
-  baseUrl: "https://app.example.com",
-};
-
-const authExtra: ToolExtra = {
-  signal: new AbortController().signal,
-  requestId: 1,
-  sendNotification: vi.fn(),
-  sendRequest: vi.fn(),
-  authInfo: {
-    token: "token",
-    clientId: "client_123",
-    scopes: ["mcp"],
-    resource: new URL("https://app.example.com/mcp"),
-    extra: {
-      [MCP_AUTH_CONTEXT_PROP]: authContext,
-    },
-  } satisfies AuthInfo,
-};
+const authExtra = makeToolExtra(
+  makeMcpAuthContext({
+    userEmail: "team@example.com",
+    baseUrl: "https://app.example.com",
+  }),
+);
 
 const backlinkPage = {
   rows: [
@@ -97,8 +78,6 @@ const backlinkPage = {
 };
 
 beforeEach(() => {
-  mocks.getProjectForOrganization.mockReset();
-  mocks.profileBacklinksPage.mockReset();
   mocks.getProjectForOrganization.mockResolvedValue({
     id: "project_123",
     locationCode: 2840,
@@ -117,7 +96,7 @@ describe("DataForSEO research tool output schemas", () => {
   ])(
     "%s accepts typed (non-plain-object) provider rows",
     async (toolName, field) => {
-      const tools = await import("./dataforseo-research-tools");
+      const tools = researchTools;
       const tool = Object.values(tools).find((t) => t.name === toolName);
       if (!tool) throw new Error(`tool ${toolName} not found`);
 
@@ -137,7 +116,6 @@ describe("DataForSEO research tool output schemas", () => {
   );
 
   it("get_backlinks_profile accepts a paginated backlinks profile payload", async () => {
-    const { getBacklinksProfileTool } = await import("./get-backlinks-profile");
     const schema = normalizeObjectSchema(
       getBacklinksProfileTool.config.outputSchema,
     );
@@ -159,7 +137,6 @@ describe("DataForSEO research tool output schemas", () => {
 describe("get_backlinks_profile MCP tool", () => {
   it("returns paginated backlink rows and honors filters, sorting, and mode", async () => {
     mocks.profileBacklinksPage.mockResolvedValue(backlinkPage);
-    const { getBacklinksProfileTool } = await import("./get-backlinks-profile");
 
     const result = await getBacklinksProfileTool.handler(
       {
@@ -217,7 +194,6 @@ describe("get_backlinks_profile MCP tool", () => {
       page: 2,
     };
     mocks.profileBacklinksPage.mockResolvedValue(finalPage);
-    const { getBacklinksProfileTool } = await import("./get-backlinks-profile");
 
     const result = await getBacklinksProfileTool.handler(
       {
@@ -244,13 +220,11 @@ describe("get_backlinks_profile MCP tool", () => {
   });
 
   it("preserves Backlinks API access and credit errors", async () => {
-    const { AppError } = await import("@/server/lib/errors");
     const error = new AppError(
       "BACKLINKS_BILLING_ISSUE",
       "The connected DataForSEO account has a billing or balance issue",
     );
     mocks.profileBacklinksPage.mockRejectedValue(error);
-    const { getBacklinksProfileTool } = await import("./get-backlinks-profile");
 
     await expect(
       getBacklinksProfileTool.handler(
