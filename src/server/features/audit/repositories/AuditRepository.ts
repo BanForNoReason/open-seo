@@ -248,8 +248,8 @@ async function insertLighthouseResults(
       payloadSizeBytes: result.payloadSizeBytes ?? null,
     })),
   );
-  // Upsert: a step retry can charge a second DataForSEO call whose result
-  // must not be silently dropped in favor of a failed first attempt.
+  // The persistence step is retryable after its paid provider result has been
+  // checkpointed, so repeated writes must stay idempotent.
   await executeInBatches(rows, (tx, row) => {
     const { id: _id, auditId: _auditId, ...dataColumns } = row;
     return tx.insert(auditLighthouseResults).values(row).onConflictDoUpdate({

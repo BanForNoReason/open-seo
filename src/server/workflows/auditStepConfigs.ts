@@ -21,9 +21,18 @@ export const CRAWL_CHUNK_STEP: WorkflowStepConfig = {
   timeout: "5 minutes",
 };
 
-/** One Lighthouse batch: 20 DataForSEO calls, each with internal retries. */
-export const LIGHTHOUSE_BATCH_STEP: WorkflowStepConfig = {
-  retries: { limit: 1, delay: "10 seconds", backoff: "constant" },
+/**
+ * One Lighthouse URL (mobile + desktop). DataForSEO charges these calls, so a
+ * Workflow replay must never issue them again after the step starts.
+ */
+export const LIGHTHOUSE_FETCH_STEP: WorkflowStepConfig = {
+  retries: { limit: 0, delay: "1 second" },
+  timeout: "5 minutes",
+};
+
+/** R2 + DB persistence is idempotent and safe to retry after the paid step. */
+export const LIGHTHOUSE_PERSIST_STEP: WorkflowStepConfig = {
+  retries: { limit: 3, delay: "5 seconds", backoff: "exponential" },
   timeout: "5 minutes",
 };
 
