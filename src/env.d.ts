@@ -35,6 +35,8 @@ declare namespace Cloudflare {
     LOOPS_TRANSACTIONAL_RESET_PASSWORD_ID?: string;
     AUTUMN_SECRET_KEY?: string;
     AUTUMN_WEBHOOK_SECRET?: string;
+    // HMAC secret for the operator-only GDPR storage-erasure endpoint.
+    GDPR_ERASURE_SECRET?: string;
 
     // Cloudflare Turnstile — signup captcha (hosted only). Secret verifies
     // tokens server-side; site key is public and inlined into the client build.

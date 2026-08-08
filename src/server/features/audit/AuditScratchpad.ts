@@ -312,6 +312,11 @@ export class AuditScratchpad extends DurableObject {
     await this.ctx.storage.deleteAll();
   }
 
+  /** Same wipe exposed under the common erasure RPC used by the admin tool. */
+  async destroyForErasure(): Promise<void> {
+    await this.destroy();
+  }
+
   /**
    * Self-cleanup for audits whose workflow died without reaching finalize.
    * Full destroy(), not just deleteAll(): under our compatibility date,

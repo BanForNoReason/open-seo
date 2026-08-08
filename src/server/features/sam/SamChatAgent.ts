@@ -99,6 +99,17 @@ export class SamChatAgent extends Think {
   private turnCostUsd = 0;
   private turnMonthlyRemaining: number | null = null;
 
+  /** Permanently remove this session's transcript for an account erasure. */
+  async destroyForErasure(): Promise<void> {
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.close(1000, "Account erased");
+    }
+    this.cancelAllChats();
+    await this.waitUntilStable({ timeout: 5000 });
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
   // Record the app origin for the deep links tools attach to responses,
   // derived from the requests this DO serves instead of env config. DO storage
   // (not an instance field) because the DO hibernates: a turn can arrive as a
