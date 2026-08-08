@@ -1,3 +1,5 @@
+import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
+
 type McpTool = {
   name: string;
   title: string;
@@ -207,11 +209,7 @@ const toolCategories: ToolCategory[] = [
   },
 ];
 
-// Google hasn't approved the GA4 OAuth app yet, so connecting fails.
-// Flip to false once the app is approved.
-const GA4_TOOLS_HIDDEN = true;
-
-const visibleCategories = GA4_TOOLS_HIDDEN
+const visibleCategories = GA4_OAUTH_APP_PENDING
   ? toolCategories.filter((cat) => cat.label !== "Google Analytics")
   : toolCategories;
 

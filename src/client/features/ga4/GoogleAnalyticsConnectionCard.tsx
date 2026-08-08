@@ -19,7 +19,10 @@ import {
   listGa4Properties,
   setGa4Property,
 } from "@/serverFunctions/ga4";
-import { GA4_SELF_HOSTED_SETUP_DOCS_URL } from "@/shared/ga4";
+import {
+  GA4_OAUTH_APP_PENDING,
+  GA4_SELF_HOSTED_SETUP_DOCS_URL,
+} from "@/shared/ga4";
 
 export function GoogleAnalyticsConnectionCard({
   projectId,
@@ -43,6 +46,14 @@ export function GoogleAnalyticsConnectionCard({
   });
   const connection = connectionQuery.data;
   const connected = Boolean(connection?.connected);
+  // Hide the hosted connect surface while the OAuth app awaits Google's
+  // approval, but keep the card for users who already hold a grant so they
+  // can finish property selection or disconnect.
+  const hiddenPendingApproval =
+    GA4_OAUTH_APP_PENDING &&
+    hosted &&
+    !connected &&
+    !connection?.currentUserHasGrant;
   const selfHostedNeedsSetup =
     !hosted && connectionQuery.isSuccess && !connection?.googleOAuthConfigured;
   const showPicker = picking || (connection?.currentUserHasGrant && !connected);
@@ -100,6 +111,8 @@ export function GoogleAnalyticsConnectionCard({
     onError: (error) => toast.error(getStandardErrorMessage(error)),
   });
   const handleConnect = () => void startGoogleLink("ga4", window.location.href);
+
+  if (hiddenPendingApproval) return null;
 
   return (
     <IntegrationConnectionCard

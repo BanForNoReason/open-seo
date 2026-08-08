@@ -25,11 +25,8 @@ import {
   refreshDashboardBacklinkSnapshot,
 } from "@/serverFunctions/dashboard";
 import { setProjectDomain } from "@/serverFunctions/projects";
+import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
 import type { DashboardHeroStep } from "@/types/schemas/dashboard";
-
-// Google hasn't approved the GA4 OAuth app yet, so connecting fails.
-// Flip to false once the app is approved.
-const GA4_CARD_HIDDEN = true;
 
 const HERO_COPY: Record<
   DashboardHeroStep,
@@ -336,7 +333,7 @@ export function DashboardPage({ projectId }: { projectId: string }) {
               hasData: gscConnected,
               node: <GscCard projectId={projectId} connected={gscConnected} />,
             },
-            ...(!GA4_CARD_HIDDEN &&
+            ...(!GA4_OAUTH_APP_PENDING &&
             (ga4Connected || !activation.ga4.cardDismissedAt)
               ? [
                   {
