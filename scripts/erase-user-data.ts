@@ -305,10 +305,6 @@ async function buildInventory(db: Db, user: UserRow) {
       schema.ga4Connections,
       eq(schema.ga4Connections.connectedByUserId, user.id),
     ),
-    reddit_attributions: await db.$count(
-      schema.redditAttributions,
-      eq(schema.redditAttributions.userId, user.id),
-    ),
   };
 
   return {
