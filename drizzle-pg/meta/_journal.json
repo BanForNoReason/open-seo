@@ -127,6 +127,13 @@
       "when": 1786066279773,
       "tag": "0017_ga4_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786208325786,
+      "tag": "0018_drop_reddit_attributions",
+      "breakpoints": true
     }
   ]
 }

@@ -280,10 +280,6 @@ const dataEnv = {
   ),
   POSTHOG_PUBLIC_KEY: optionalVar("POSTHOG_PUBLIC_KEY"),
   POSTHOG_HOST: optionalVar("POSTHOG_HOST"),
-  REDDIT_PIXEL_ID: optionalSecret("REDDIT_PIXEL_ID"),
-  REDDIT_CONVERSIONS_ACCESS_TOKEN: optionalSecret(
-    "REDDIT_CONVERSIONS_ACCESS_TOKEN",
-  ),
   TURNSTILE_SECRET_KEY: optionalSecret("TURNSTILE_SECRET_KEY"),
   TURNSTILE_SITE_KEY: optionalVar("TURNSTILE_SITE_KEY"),
   // Alchemy reconciles worker vars on every deploy, so the telemetry opt-out

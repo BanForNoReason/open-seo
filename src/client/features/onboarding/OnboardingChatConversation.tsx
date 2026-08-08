@@ -8,6 +8,8 @@ import {
   type ResolveToolLabel,
 } from "@/client/components/chat/ChatMessage";
 import { captureClientEvent } from "@/client/lib/posthog";
+import { getStandardErrorMessage } from "@/client/lib/error-messages";
+import { buildCheckoutSuccessUrl } from "@/client/features/billing/checkout-url";
 import { AUTUMN_PAID_PLAN_ID } from "@/shared/billing";
 import { FREE_ONBOARDING_QUESTION_LIMIT } from "@/shared/onboardingChat";
 import {
@@ -110,20 +112,19 @@ export function OnboardingChatConversation({
     setIsStartingCheckout(true);
     try {
       captureClientEvent("billing:checkout_start");
-      // After payment, re-enter onboarding at the GSC step (not back into this
-      // chat) so the user finishes connecting Search Console + MCP.
-      const successUrl = new URL("/onboarding", window.location.origin);
-      successUrl.searchParams.set("step", "3");
-      successUrl.searchParams.set("checkout", "success");
+      // After payment, re-enter onboarding at the GSC step (not back into
+      // this chat) so the user finishes connecting Search Console + MCP.
       await customerQuery.attach({
         planId: AUTUMN_PAID_PLAN_ID,
         redirectMode: "always",
-        successUrl: successUrl.toString(),
+        successUrl: buildCheckoutSuccessUrl("/onboarding?step=3"),
       });
     } catch (checkoutErr) {
-      console.error("Failed to start checkout", checkoutErr);
       setCheckoutError(
-        "We couldn't start checkout. Please refresh and try again.",
+        getStandardErrorMessage(
+          checkoutErr,
+          "We couldn't start checkout. Please refresh and try again.",
+        ),
       );
       setIsStartingCheckout(false);
     }
