@@ -1,12 +1,11 @@
-import type {
+import {
+  type CallToolResult,
   McpServer,
-  ToolCallback,
-} from "@modelcontextprotocol/sdk/server/mcp.js";
-import type {
-  AnySchema,
-  ZodRawShapeCompat,
-} from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+  type ToolAnnotations,
+} from "@modelcontextprotocol/server";
+import type { z } from "zod";
+import { createMcpToolContext, type ToolContext } from "@/server/mcp/context";
+import { objectSchema } from "@/server/mcp/output-schemas";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
@@ -19,9 +18,6 @@ import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
 import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
 import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
-import { createProjectTool } from "@/server/mcp/tools/create-project";
-import { listProjectsTool } from "@/server/mcp/tools/list-projects";
-import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
   getGoogleAnalyticsAudienceBreakdownTool,
   getGoogleAnalyticsEcommercePerformanceTool,
@@ -34,6 +30,9 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
+import { createProjectTool } from "@/server/mcp/tools/create-project";
+import { listProjectsTool } from "@/server/mcp/tools/list-projects";
+import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
@@ -56,75 +55,118 @@ import {
 } from "@/server/mcp/tools/site-audit-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 
-// Each handler is wrapped so failures reach PostHog because the MCP route has
-// no error middleware of its own.
-function registerInstrumentedTool<
-  In extends ZodRawShapeCompat | AnySchema,
-  Out extends ZodRawShapeCompat | AnySchema,
->(
+type ToolSchema = z.ZodType | z.ZodRawShape;
+
+// Tools declare inputSchema as either a raw Zod shape (most tools) or a full
+// z.object (the GA4 tools); both normalize to one object schema at
+// registration.
+type ToolArgs<Input extends ToolSchema> = Input extends z.ZodType
+  ? z.infer<Input>
+  : Input extends z.ZodRawShape
+    ? z.infer<z.ZodObject<Input>>
+    : never;
+
+type OpenSeoToolDefinition<Input extends ToolSchema> = {
+  name: string;
+  config: {
+    title?: string;
+    description?: string;
+    inputSchema: Input;
+    outputSchema?: ToolSchema;
+    annotations?: ToolAnnotations;
+  };
+  handler: (
+    args: ToolArgs<Input>,
+    context: ToolContext,
+  ) => CallToolResult | Promise<CallToolResult>;
+};
+
+function registerOpenSeoTool<Input extends ToolSchema>(
   server: McpServer,
-  tool: {
-    name: string;
-    config: {
-      inputSchema?: In;
-      outputSchema?: Out;
-      title?: string;
-      description?: string;
-      annotations?: ToolAnnotations;
-    };
-    handler: ToolCallback<In>;
-  },
+  tool: OpenSeoToolDefinition<Input>,
 ) {
+  const outputSchema = objectSchema(tool.config.outputSchema);
+  const handler = instrumentMcpToolHandler(
+    tool.name,
+    outputSchema,
+    tool.handler,
+  );
+
   server.registerTool(
     tool.name,
-    tool.config,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- instrumentation preserves the callback arguments validated by ToolCallback<In>
-    instrumentMcpToolHandler(
-      tool.name,
-      tool.config.outputSchema,
-      tool.handler,
-    ) as ToolCallback<In>,
+    {
+      ...tool.config,
+      inputSchema: objectSchema(tool.config.inputSchema),
+      outputSchema,
+    },
+    (args, context) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- args were validated against the tool's own inputSchema just above
+      handler(args as ToolArgs<Input>, createMcpToolContext(context)),
   );
 }
 
-export function registerOpenSeoMcpTools(server: McpServer) {
-  registerInstrumentedTool(server, whoamiTool);
-  registerInstrumentedTool(server, listProjectsTool);
-  registerInstrumentedTool(server, createProjectTool);
-  registerInstrumentedTool(server, listSavedKeywordsTool);
-  registerInstrumentedTool(server, researchKeywordsTool);
-  registerInstrumentedTool(server, saveKeywordsTool);
-  registerInstrumentedTool(server, getDomainOverviewTool);
-  registerInstrumentedTool(server, getDomainKeywordSuggestionsTool);
-  registerInstrumentedTool(server, getBacklinksOverviewTool);
-  registerInstrumentedTool(server, getBacklinksProfileTool);
-  registerInstrumentedTool(server, getSerpResultsTool);
-  registerInstrumentedTool(server, createRankTrackerTool);
-  registerInstrumentedTool(server, getRankTrackerTool);
-  registerInstrumentedTool(server, addRankTrackingKeywordsTool);
-  registerInstrumentedTool(server, removeRankTrackingKeywordsTool);
-  registerInstrumentedTool(server, estimateRankTrackerCostTool);
-  registerInstrumentedTool(server, runRankTrackerTool);
-  registerInstrumentedTool(server, getRankedKeywordsTool);
-  registerInstrumentedTool(server, findSerpCompetitorsTool);
-  registerInstrumentedTool(server, searchLocalBusinessesTool);
-  registerInstrumentedTool(server, getLocalSerpResultsTool);
-  registerInstrumentedTool(server, getGoogleBusinessQuestionsTool);
-  registerInstrumentedTool(server, getKeywordMetricsTool);
-  registerInstrumentedTool(server, getSearchConsolePerformanceTool);
-  registerInstrumentedTool(server, inspectUrlsTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsOrganicLandingPagesTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsPagePerformanceTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsKeyEventsTool);
-  registerInstrumentedTool(server, getSearchOpportunitiesTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsOrganicOverviewTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsTrafficAcquisitionTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsMeasurementHealthTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsEcommercePerformanceTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsSiteSearchTool);
-  registerInstrumentedTool(server, getGoogleAnalyticsAudienceBreakdownTool);
-  registerInstrumentedTool(server, runSiteAuditTool);
-  registerInstrumentedTool(server, getAuditStatusTool);
-  registerInstrumentedTool(server, getAuditIssuesTool);
-  registerInstrumentedTool(server, getAuditPagesTool);
+export function createOpenSeoMcpServer() {
+  const server = new McpServer(
+    {
+      name: "OpenSEO MCP",
+      title: "OpenSEO",
+      version: "0.0.11",
+      description:
+        "SEO research tools for AI agents: keyword research and metrics, SERP and local SERP results, domain and backlink analysis, rank tracking, and Google Search Console performance.",
+      websiteUrl: "https://openseo.so",
+      icons: [
+        {
+          src: "https://openseo.so/android-chrome-512x512.png",
+          mimeType: "image/png",
+          sizes: ["512x512"],
+        },
+      ],
+    },
+    {
+      instructions:
+        "OpenSEO research tools use credits. Proceed with normal focused research, but ask the user for confirmation before planned batches over 2,000 credits.",
+    },
+  );
+
+  registerOpenSeoTool(server, whoamiTool);
+  registerOpenSeoTool(server, listProjectsTool);
+  registerOpenSeoTool(server, createProjectTool);
+  registerOpenSeoTool(server, listSavedKeywordsTool);
+  registerOpenSeoTool(server, researchKeywordsTool);
+  registerOpenSeoTool(server, saveKeywordsTool);
+  registerOpenSeoTool(server, getDomainOverviewTool);
+  registerOpenSeoTool(server, getDomainKeywordSuggestionsTool);
+  registerOpenSeoTool(server, getBacklinksOverviewTool);
+  registerOpenSeoTool(server, getBacklinksProfileTool);
+  registerOpenSeoTool(server, getSerpResultsTool);
+  registerOpenSeoTool(server, createRankTrackerTool);
+  registerOpenSeoTool(server, getRankTrackerTool);
+  registerOpenSeoTool(server, addRankTrackingKeywordsTool);
+  registerOpenSeoTool(server, removeRankTrackingKeywordsTool);
+  registerOpenSeoTool(server, estimateRankTrackerCostTool);
+  registerOpenSeoTool(server, runRankTrackerTool);
+  registerOpenSeoTool(server, getRankedKeywordsTool);
+  registerOpenSeoTool(server, findSerpCompetitorsTool);
+  registerOpenSeoTool(server, searchLocalBusinessesTool);
+  registerOpenSeoTool(server, getLocalSerpResultsTool);
+  registerOpenSeoTool(server, getGoogleBusinessQuestionsTool);
+  registerOpenSeoTool(server, getKeywordMetricsTool);
+  registerOpenSeoTool(server, getSearchConsolePerformanceTool);
+  registerOpenSeoTool(server, inspectUrlsTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsOrganicLandingPagesTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsPagePerformanceTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsKeyEventsTool);
+  registerOpenSeoTool(server, getSearchOpportunitiesTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsOrganicOverviewTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsTrafficAcquisitionTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsMeasurementHealthTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsEcommercePerformanceTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsSiteSearchTool);
+  registerOpenSeoTool(server, getGoogleAnalyticsAudienceBreakdownTool);
+  registerOpenSeoTool(server, runSiteAuditTool);
+  registerOpenSeoTool(server, getAuditStatusTool);
+  registerOpenSeoTool(server, getAuditIssuesTool);
+  registerOpenSeoTool(server, getAuditPagesTool);
+
+  return server;
 }

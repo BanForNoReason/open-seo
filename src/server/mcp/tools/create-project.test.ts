@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createProjectTool } from "./create-project";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 describe("create_project MCP tool", () => {
   beforeEach(() => {});
@@ -28,7 +28,7 @@ describe("create_project MCP tool", () => {
 
     const result = await createProjectTool.handler(
       { name: "Acme", domain: "acme.com", locationCode: 2840 },
-      toolExtra,
+      toolContext,
     );
 
     // The schema does not derive languageCode; the service resolves it from
@@ -62,7 +62,7 @@ describe("create_project MCP tool", () => {
       languageCode: "en",
     });
 
-    await createProjectTool.handler({ name: "Just a name" }, toolExtra);
+    await createProjectTool.handler({ name: "Just a name" }, toolContext);
 
     expect(mocks.createProject).toHaveBeenCalledWith("org_123", {
       name: "Just a name",
@@ -73,7 +73,7 @@ describe("create_project MCP tool", () => {
     await expect(
       createProjectTool.handler(
         { name: "Bad market", languageCode: "en" },
-        toolExtra,
+        toolContext,
       ),
     ).rejects.toThrow();
     expect(mocks.createProject).not.toHaveBeenCalled();

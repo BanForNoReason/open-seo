@@ -3,7 +3,7 @@ import {
   findSerpCompetitorsTool,
   getRankedKeywordsTool,
 } from "./dataforseo-research-tools";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 // Market resolution for get_ranked_keywords: the explicit country selector and
 // the project's default-market fallback (projects.locationCode/languageCode).
@@ -27,7 +27,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 function setProject(market: { locationCode: number; languageCode: string }) {
   mocks.getProjectForOrganization.mockResolvedValue({
@@ -55,7 +55,7 @@ async function runRankedKeywords(args: MarketArgs) {
   });
   await getRankedKeywordsTool.handler(
     { projectId: "project_1", target: "acmeexample.com", ...args },
-    toolExtra,
+    toolContext,
   );
   return rankedKeywords;
 }
@@ -67,7 +67,7 @@ async function runSerpCompetitors(args: MarketArgs) {
   });
   await findSerpCompetitorsTool.handler(
     { projectId: "project_1", keywords: ["seo"], ...args },
-    toolExtra,
+    toolContext,
   );
   return serpCompetitors;
 }

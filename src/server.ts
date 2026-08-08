@@ -181,13 +181,32 @@ export { SamChatAgent } from "./server/features/sam/SamChatAgent";
 // Durable Object class for the per-audit crawl scratchpad.
 export { AuditScratchpad } from "./server/features/audit/AuditScratchpad";
 
+// Daily OAuth KV garbage collection; must match a trigger in wrangler.jsonc.
+const MCP_OAUTH_PURGE_CRON = "17 3 * * *";
+
 export default {
   fetch,
   async scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: Env,
     _ctx: ExecutionContext,
   ) {
+    if (controller.cron === MCP_OAUTH_PURGE_CRON) {
+      // Only hosted mode runs the OAuth provider (and has OAUTH_KV bound).
+      if (isHostedAuthMode(getAuthMode(env.AUTH_MODE))) {
+        const result = await openSeoOAuthProvider.purgeExpiredData(
+          env as OpenSeoOAuthEnv,
+        );
+        console.log("[mcp-oauth] purged expired OAuth data", result);
+        if (!result.done) {
+          // The sweep only advances past live records via deletions; a
+          // persistent incomplete scan means the keyspace outgrew the batch.
+          console.warn("[mcp-oauth] purge did not cover the full keyspace");
+        }
+      }
+      return;
+    }
+
     // Watchdog first: reconcile audits stuck in "running" whose workflow died
     // without reaching mark-failed (OOM/CPU kills, expired instances). Runs
     // before the rank loop so a slow tick can't delay or starve it. Its

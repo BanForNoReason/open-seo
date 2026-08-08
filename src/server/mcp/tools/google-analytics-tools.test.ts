@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGa4ReportResult } from "@/server/features/ga4/services/ga4-test-fixtures";
 import { Ga4ReportError } from "@/server/lib/ga4Errors";
 import * as tools from "./google-analytics-tools";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   runReport: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 const reportResult = makeGa4ReportResult({
   rowCount: 1,
   totalRowCount: 1,
@@ -70,7 +70,7 @@ describe("Google Analytics MCP tools", () => {
     const { getGoogleAnalyticsOrganicLandingPagesTool } = tools;
     const result = await getGoogleAnalyticsOrganicLandingPagesTool.handler(
       { projectId: "project_1", limit: 10, offset: 0 },
-      toolExtra,
+      toolContext,
     );
     expect(mocks.runReport).toHaveBeenCalledWith({
       projectId: "project_1",
@@ -99,7 +99,7 @@ describe("Google Analytics MCP tools", () => {
         limit: 100,
         offset: 0,
       },
-      toolExtra,
+      toolContext,
     );
     await getGoogleAnalyticsKeyEventsTool.handler(
       {
@@ -110,7 +110,7 @@ describe("Google Analytics MCP tools", () => {
         limit: 100,
         offset: 0,
       },
-      toolExtra,
+      toolContext,
     );
     expect(mocks.runReport).toHaveBeenNthCalledWith(
       1,
@@ -146,7 +146,7 @@ describe("Google Analytics MCP tools", () => {
         limit: 100,
         offset: 0,
       },
-      toolExtra,
+      toolContext,
     );
     expect(result.structuredContent).toMatchObject({
       status: "error",
@@ -168,7 +168,7 @@ describe("Google Analytics MCP tools", () => {
     const { getSearchOpportunitiesTool } = tools;
     const result = await getSearchOpportunitiesTool.handler(
       { projectId: "project_1", limit: 25 },
-      toolExtra,
+      toolContext,
     );
     expect(mocks.getOpportunities).toHaveBeenCalledWith({
       projectId: "project_1",
@@ -193,7 +193,7 @@ describe("Google Analytics MCP tools", () => {
             limit: 100,
             offset: 0,
           },
-          toolExtra,
+          toolContext,
         ),
     ],
     [
@@ -208,7 +208,7 @@ describe("Google Analytics MCP tools", () => {
             limit: 100,
             offset: 0,
           },
-          toolExtra,
+          toolContext,
         ),
     ],
     [
@@ -216,7 +216,7 @@ describe("Google Analytics MCP tools", () => {
       () =>
         tools.getGoogleAnalyticsSiteSearchTool.handler(
           { projectId: "project_1", limit: 100, offset: 0 },
-          toolExtra,
+          toolContext,
         ),
     ],
     [
@@ -231,7 +231,7 @@ describe("Google Analytics MCP tools", () => {
             limit: 100,
             offset: 0,
           },
-          toolExtra,
+          toolContext,
         ),
     ],
   ] as const)(
@@ -265,11 +265,11 @@ describe("Google Analytics MCP tools", () => {
     } = tools;
     const overview = await getGoogleAnalyticsOrganicOverviewTool.handler(
       { projectId: "project_1", trend: "weekly" },
-      toolExtra,
+      toolContext,
     );
     const health = await getGoogleAnalyticsMeasurementHealthTool.handler(
       { projectId: "project_1" },
-      toolExtra,
+      toolContext,
     );
     expect(mocks.getOrganicOverview).toHaveBeenCalledWith({
       projectId: "project_1",

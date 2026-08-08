@@ -5,7 +5,7 @@ import { createRankTrackerTool } from "./create-rank-tracker";
 import { estimateRankTrackerCostTool } from "./estimate-rank-tracker-cost";
 import { removeRankTrackingKeywordsTool } from "./remove-rank-tracking-keywords";
 import { runRankTrackerTool } from "./run-rank-tracker";
-import { makeToolExtra, textContent } from "./tool-test-support";
+import { makeToolContext, textContent } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -46,7 +46,7 @@ const projectId = "11111111-1111-4111-8111-111111111111";
 const trackerId = "22222222-2222-4222-8222-222222222222";
 const keywordId = "33333333-3333-4333-8333-333333333333";
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 const createdConfig = {
   id: trackerId,
@@ -78,7 +78,7 @@ describe("rank tracking management MCP tools", () => {
     const parsed = z.object(createRankTrackerTool.config.inputSchema).parse({
       projectId,
     });
-    const result = await createRankTrackerTool.handler(parsed, toolExtra);
+    const result = await createRankTrackerTool.handler(parsed, toolContext);
 
     expect(mocks.createConfig).toHaveBeenCalledWith({
       projectId,
@@ -130,7 +130,7 @@ describe("rank tracking management MCP tools", () => {
     });
 
     await expect(
-      createRankTrackerTool.handler({ projectId }, toolExtra),
+      createRankTrackerTool.handler({ projectId }, toolContext),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(mocks.createConfig).not.toHaveBeenCalled();
   });
@@ -153,7 +153,7 @@ describe("rank tracking management MCP tools", () => {
 
     const added = await addRankTrackingKeywordsTool.handler(
       { projectId, trackerId, keywords: ["seo", "SEO", "existing"] },
-      toolExtra,
+      toolContext,
     );
     expect(textContent(added)).toContain("Added 1 of 3 requested");
     expect(added.structuredContent).toMatchObject({ requested: 3, added: 1 });
@@ -169,7 +169,7 @@ describe("rank tracking management MCP tools", () => {
 
     const removed = await removeRankTrackingKeywordsTool.handler(
       { projectId, trackerId, keywordIds: [keywordId, keywordId] },
-      toolExtra,
+      toolContext,
     );
     expect(textContent(removed)).toContain("Removed 1 of 2 requested");
     expect(removed.structuredContent).toMatchObject({
@@ -200,7 +200,7 @@ describe("rank tracking management MCP tools", () => {
     });
     const result = await estimateRankTrackerCostTool.handler(
       { projectId, trackerId, additionalKeywordCount: 3 },
-      toolExtra,
+      toolContext,
     );
 
     expect(textContent(result)).toContain(
@@ -224,7 +224,7 @@ describe("rank tracking management MCP tools", () => {
     });
     const result = await runRankTrackerTool.handler(
       { projectId, trackerId, maxCostCredits: 13 },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -256,7 +256,7 @@ describe("rank tracking management MCP tools", () => {
     });
     const result = await runRankTrackerTool.handler(
       { projectId, trackerId, maxCostCredits: 13 },
-      toolExtra,
+      toolContext,
     );
 
     expect(textContent(result)).toContain("no additional check was charged");
@@ -277,7 +277,7 @@ describe("rank tracking management MCP tools", () => {
     await expect(
       runRankTrackerTool.handler(
         { projectId, trackerId, maxCostCredits: 13 },
-        toolExtra,
+        toolContext,
       ),
     ).resolves.toMatchObject({
       structuredContent: { started: true, runId: "run_1" },

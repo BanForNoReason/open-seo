@@ -1,38 +1,38 @@
 import { waitUntil } from "cloudflare:workers";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import {
-  getParseErrorMessage,
-  normalizeObjectSchema,
-  safeParseAsync,
-  type AnySchema,
-  type ZodRawShapeCompat,
-} from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
+import type { z } from "zod";
 import { asAppError } from "@/server/lib/errors";
 import { recordExternalMcpToolCall } from "@/server/features/activation/mcpActivation";
 import { captureServerError, captureServerEvent } from "@/server/lib/posthog";
 import { shouldCaptureAppErrorCode } from "@/shared/error-codes";
-import { getAuth, type ToolExtra } from "@/server/mcp/context";
+import { type ToolContext } from "@/server/mcp/context";
 import { incrementSelfHostMcpToolCallCount } from "@/server/lib/self-host-telemetry";
 
 type ToolHandler<TArgs> = (
   args: TArgs,
-  extra: ToolExtra,
+  context: ToolContext,
 ) => CallToolResult | Promise<CallToolResult>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function formatValidationIssues(error: z.ZodError) {
+  return error.issues
+    .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
+    .join("; ")
+    .slice(0, 500);
+}
+
 /**
  * Usage analytics for every MCP tool invocation. `clientId` distinguishes
  * external MCP clients (OAuth) from the in-app agent (first-party auth, null
  * clientId); self-hosted installs never report because captureServerEvent is
- * gated to hosted mode. Analytics must never affect the tool call, so a
- * missing auth context (e.g. in tests) is swallowed.
+ * gated to hosted mode.
  */
 function captureMcpToolCall(
   toolName: string,
-  extra: ToolExtra,
+  context: ToolContext,
   outcome: {
     success: boolean;
     errorCode?: string;
@@ -44,29 +44,25 @@ function captureMcpToolCall(
 ) {
   waitUntil(incrementSelfHostMcpToolCallCount());
 
-  try {
-    const auth = getAuth(extra);
-    waitUntil(
-      captureServerEvent({
-        distinctId: auth.userId,
-        event: "mcp:tool_call",
-        organizationId: auth.organizationId,
-        properties: {
-          tool: toolName,
-          success: outcome.success,
-          error_code: outcome.errorCode,
-          client_id: auth.clientId,
-          source: auth.clientId ? "mcp_client" : "in_app_agent",
-          duration_ms: outcome.durationMs,
-          project_id: outcome.projectId,
-          row_count: outcome.rowCount,
-          quota_remaining: outcome.quotaRemaining,
-        },
-      }),
-    );
-  } catch {
-    // no auth context — skip analytics
-  }
+  const auth = context.auth;
+  waitUntil(
+    captureServerEvent({
+      distinctId: auth.userId,
+      event: "mcp:tool_call",
+      organizationId: auth.organizationId,
+      properties: {
+        tool: toolName,
+        success: outcome.success,
+        error_code: outcome.errorCode,
+        client_id: auth.clientId,
+        source: auth.clientId ? "mcp_client" : "in_app_agent",
+        duration_ms: outcome.durationMs,
+        project_id: outcome.projectId,
+        row_count: outcome.rowCount,
+        quota_remaining: outcome.quotaRemaining,
+      },
+    }),
+  );
 }
 
 /**
@@ -80,51 +76,43 @@ function captureMcpToolCall(
  *  - Output-schema validation failures. The SDK validates structuredContent
  *    against the output schema *after* the handler returns and converts a
  *    failure into a -32602 JSON-RPC error it never rethrows, so we re-run the
- *    same validation (via the SDK's own helpers) to surface the mismatch
- *    instead of shipping it silently.
+ *    same validation to surface the mismatch instead of shipping it silently.
  */
 export function instrumentMcpToolHandler<TArgs>(
   toolName: string,
-  outputSchema: AnySchema | ZodRawShapeCompat | undefined,
+  outputSchema: z.ZodType | undefined,
   handler: ToolHandler<TArgs>,
-): (args: TArgs, extra: ToolExtra) => Promise<CallToolResult> {
-  const normalizedOutputSchema = normalizeObjectSchema(outputSchema);
-
-  return async (args, extra) => {
+): (args: TArgs, context: ToolContext) => Promise<CallToolResult> {
+  return async (args, context) => {
     const startedAt = performance.now();
     try {
-      const result = await handler(args, extra);
+      const result = await handler(args, context);
       // The SDK converts an output-schema mismatch into a client-visible
       // JSON-RPC error, so count it as a failed call, not a success.
       let outputValidationFailed = false;
-      if (
-        normalizedOutputSchema &&
-        !result.isError &&
-        result.structuredContent
-      ) {
-        const validation = await safeParseAsync(
-          normalizedOutputSchema,
+      if (outputSchema && !result.isError && result.structuredContent) {
+        const validation = await outputSchema.safeParseAsync(
           result.structuredContent,
         );
         if (!validation.success) {
           outputValidationFailed = true;
-          // getParseErrorMessage reports type-level mismatches (expected vs
-          // received *types*), so it carries no row data. Keep it that way:
-          // output schemas must not gain value-echoing refinements (enums on
-          // user data, etc.) that would surface response values in PostHog.
+          // Keep this type-level and privacy-safe: output schemas must not gain
+          // value-echoing refinements that would surface response data here.
           waitUntil(
             captureServerError(
               new Error(`MCP output validation failed for ${toolName}`),
               {
                 errorCode: "MCP_OUTPUT_VALIDATION",
                 tool: toolName,
-                issues: getParseErrorMessage(validation.error).slice(0, 500),
+                issues: formatValidationIssues(validation.error),
               },
             ),
           );
         }
       }
-      const structured = result.structuredContent;
+      const structured = isRecord(result.structuredContent)
+        ? result.structuredContent
+        : undefined;
       const returnedFailure =
         structured?.status === "error" || structured?.ok === false;
       const returnedError =
@@ -148,7 +136,7 @@ export function instrumentMcpToolHandler<TArgs>(
         !result.isError && !outputValidationFailed && !returnedFailure;
       captureMcpToolCall(
         toolName,
-        extra,
+        context,
         outputValidationFailed
           ? {
               success: false,
@@ -179,19 +167,15 @@ export function instrumentMcpToolHandler<TArgs>(
       // the request's DB scope; a per-isolate memo keeps this off the hot
       // path after the first call.
       if (succeeded) {
-        try {
-          const auth = getAuth(extra);
-          if (auth.clientId) {
-            await recordExternalMcpToolCall(auth.organizationId);
-          }
-        } catch {
-          // no auth context — skip milestone tracking
+        const auth = context.auth;
+        if (auth.clientId) {
+          await recordExternalMcpToolCall(auth.organizationId);
         }
       }
       return result;
     } catch (error) {
       const appError = asAppError(error);
-      captureMcpToolCall(toolName, extra, {
+      captureMcpToolCall(toolName, context, {
         success: false,
         errorCode: appError?.code ?? "INTERNAL_ERROR",
         durationMs: Math.round(performance.now() - startedAt),

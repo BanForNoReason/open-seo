@@ -6,7 +6,7 @@ import { getDomainKeywordSuggestionsTool } from "./get-domain-keyword-suggestion
 import { getRankTrackerTool } from "./get-rank-tracker";
 import { getSerpResultsTool } from "./get-serp-results";
 import { researchKeywordsTool } from "./research-keywords";
-import { makeToolExtra, textContent } from "./tool-test-support";
+import { makeToolContext, textContent } from "./tool-test-support";
 
 // Verifies that each tool renders its actual row data into the text content
 // block (not just a count), across the tools whose data comes from OpenSEO
@@ -69,7 +69,7 @@ vi.mock("@/server/features/rank-tracking/services/RankTrackingService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 describe("MCP tool text output (service-backed tools)", () => {
   beforeEach(() => {
@@ -108,7 +108,7 @@ describe("MCP tool text output (service-backed tools)", () => {
 
     const result = await researchKeywordsTool.handler(
       { projectId: "project_1", seeds: [{ seed: "seo tools" }] },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -129,7 +129,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     ]);
     const result = await getDomainKeywordSuggestionsTool.handler(
       { projectId: "project_1", domain: "example.com" },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -160,7 +160,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     });
     const result = await getBacklinksOverviewTool.handler(
       { projectId: "project_1", target: "example.com" },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -201,7 +201,7 @@ describe("MCP tool text output (service-backed tools)", () => {
         filters: {},
         mode: "one_per_domain",
       },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -236,7 +236,7 @@ describe("MCP tool text output (service-backed tools)", () => {
 
     const result = await getRankTrackerTool.handler(
       { projectId: "project_1", trackerId: "tracker_1" },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -268,7 +268,7 @@ describe("MCP tool text output (service-backed tools)", () => {
 
     const result = await getRankTrackerTool.handler(
       { projectId: "project_1", trackerId: "tracker_1" },
-      toolExtra,
+      toolContext,
     );
 
     expect(textContent(result)).toContain(
@@ -310,7 +310,7 @@ describe("MCP tool text output (service-backed tools)", () => {
 
     const result = await getRankedKeywordsTool.handler(
       { projectId: "project_1", target: "example.com" },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);
@@ -335,7 +335,7 @@ describe("MCP tool text output (service-backed tools)", () => {
 
     const result = await getSerpResultsTool.handler(
       { projectId: "project_1", queries: [{ keyword: "seo tools" }] },
-      toolExtra,
+      toolContext,
     );
 
     const out = textContent(result);

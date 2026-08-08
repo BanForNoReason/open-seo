@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listSavedKeywordsTool } from "./list-saved-keywords";
 import { saveKeywordsTool } from "./save-keywords";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("@/server/features/keywords/services/KeywordResearchService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 describe("saved keyword MCP tools", () => {
   beforeEach(() => {
@@ -45,7 +45,7 @@ describe("saved keyword MCP tools", () => {
         keywords: ["technical seo"],
         tags: ["Content"],
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.saveKeywords).toHaveBeenCalledWith({
@@ -76,7 +76,7 @@ describe("saved keyword MCP tools", () => {
         tags: ["cluster: affordable semrush alternatives"],
         tagMode: "replace",
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.saveKeywords).toHaveBeenCalledWith({
@@ -102,7 +102,7 @@ describe("saved keyword MCP tools", () => {
           keywords: ["semrush alternative"],
           tagMode: "replace",
         },
-        toolExtra,
+        toolContext,
       ),
     ).rejects.toThrow("Replacement tags are required");
     expect(mocks.saveKeywords).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("saved keyword MCP tools", () => {
         tags: ["Content"],
         limit: 50,
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.getSavedKeywords).toHaveBeenCalledWith({

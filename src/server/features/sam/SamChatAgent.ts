@@ -29,7 +29,7 @@ import {
 } from "@/server/billing/subscription";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { MCP_SCOPE } from "@/lib/oauth-resource";
-import { buildFirstPartyMcpAuthContext } from "@/server/mcp/context";
+import type { ToolAuthContext } from "@/server/mcp/context";
 
 // SAM's writable context blocks, backed by sam_project_memory rows shared by
 // every chat session in the project.
@@ -255,13 +255,14 @@ export class SamChatAgent extends Think {
       const baseUrl =
         (await this.ctx.storage.get<string>(PUBLIC_ORIGIN_KEY)) ??
         "https://app.openseo.so";
-      const authContext = buildFirstPartyMcpAuthContext({
+      const authContext: ToolAuthContext = {
         userId: ctx.row.userId,
         userEmail: ctx.userEmail,
         organizationId,
         baseUrl,
+        clientId: null,
         scopes: [MCP_SCOPE],
-      });
+      };
 
       return {
         tools: buildSamMcpTools(authContext, {

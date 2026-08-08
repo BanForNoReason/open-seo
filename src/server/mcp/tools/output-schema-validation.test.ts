@@ -1,12 +1,9 @@
-import {
-  normalizeObjectSchema,
-  safeParseAsync,
-} from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "@/server/lib/errors";
+import { objectSchema } from "@/server/mcp/output-schemas";
 import * as researchTools from "./dataforseo-research-tools";
 import { getBacklinksProfileTool } from "./get-backlinks-profile";
-import { makeMcpAuthContext, makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -42,12 +39,10 @@ class ProviderRow {
   ) {}
 }
 
-const authExtra = makeToolExtra(
-  makeMcpAuthContext({
-    userEmail: "team@example.com",
-    baseUrl: "https://app.example.com",
-  }),
-);
+const toolContext = makeToolContext({
+  userEmail: "team@example.com",
+  baseUrl: "https://app.example.com",
+});
 
 const backlinkPage = {
   rows: [
@@ -100,13 +95,12 @@ describe("DataForSEO research tool output schemas", () => {
       const tool = Object.values(tools).find((t) => t.name === toolName);
       if (!tool) throw new Error(`tool ${toolName} not found`);
 
-      const schema = normalizeObjectSchema(tool.config.outputSchema);
-      if (!schema) throw new Error("output schema did not normalize");
+      const schema = objectSchema(tool.config.outputSchema);
 
       // Mirror the MCP server: validate structuredContent against the tool's
       // own output schema. Extra keys (e.g. get_ranked_keywords' totalCount)
       // are allowed by the passthrough schemas, so one payload covers all.
-      const result = await safeParseAsync(schema, {
+      const result = await schema.safeParseAsync({
         [field]: [new ProviderRow("example.com", 1)],
         totalCount: 1,
       });
@@ -116,12 +110,9 @@ describe("DataForSEO research tool output schemas", () => {
   );
 
   it("get_backlinks_profile accepts a paginated backlinks profile payload", async () => {
-    const schema = normalizeObjectSchema(
-      getBacklinksProfileTool.config.outputSchema,
-    );
-    if (!schema) throw new Error("output schema did not normalize");
+    const schema = objectSchema(getBacklinksProfileTool.config.outputSchema);
 
-    const result = await safeParseAsync(schema, {
+    const result = await schema.safeParseAsync({
       backlinks: backlinkPage,
       meta: {
         organizationId: "org_123",
@@ -155,7 +146,7 @@ describe("get_backlinks_profile MCP tool", () => {
         mode: "as_is",
         hideSpam: false,
       },
-      authExtra,
+      toolContext,
     );
 
     expect(mocks.profileBacklinksPage).toHaveBeenCalledWith(
@@ -208,7 +199,7 @@ describe("get_backlinks_profile MCP tool", () => {
         mode: "one_per_domain",
         hideSpam: true,
       },
-      authExtra,
+      toolContext,
     );
 
     expect(result.structuredContent?.backlinks).toMatchObject({
@@ -240,7 +231,7 @@ describe("get_backlinks_profile MCP tool", () => {
           mode: "one_per_domain",
           hideSpam: true,
         },
-        authExtra,
+        toolContext,
       ),
     ).rejects.toMatchObject({
       code: "BACKLINKS_BILLING_ISSUE",

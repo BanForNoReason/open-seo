@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { fetchKeywordMetricsForList as FetchKeywordMetricsForList } from "@/server/lib/dataforseo/keyword-metrics";
 import { getKeywordMetricsTool } from "./dataforseo-research-tools";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   createDataforseoClient: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 describe("get_keyword_metrics for Google-Ads-only locations", () => {
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe("get_keyword_metrics for Google-Ads-only locations", () => {
         locationCode: 2352,
         languageCode: "is",
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(keywordOverview).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe("get_keyword_metrics for Google-Ads-only locations", () => {
         keywords: ["seo tools"],
         includeClickstreamData: true,
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(keywordOverview).toHaveBeenCalledWith(

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { fetchKeywordMetricsForList as FetchKeywordMetricsForList } from "@/server/lib/dataforseo/keyword-metrics";
 import * as researchTools from "./dataforseo-research-tools";
-import { makeToolExtra, textContent } from "./tool-test-support";
+import { makeToolContext, textContent } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   createDataforseoClient: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   },
 }));
 
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 const usProjectRow = {
   id: "project_1",
@@ -70,7 +70,7 @@ describe("DataForSEO research MCP tools", () => {
         },
         categories: ["cafe"],
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(businessListings).toHaveBeenCalledWith(
@@ -116,7 +116,7 @@ describe("DataForSEO research MCP tools", () => {
           zoom: 14,
         },
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(local).toHaveBeenCalledWith(
@@ -164,7 +164,7 @@ describe("DataForSEO research MCP tools", () => {
           radiusKm: 5,
         },
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(questionsAnswers).toHaveBeenCalledWith(
@@ -201,7 +201,7 @@ describe("DataForSEO research MCP tools", () => {
         target: "acmeexample.com",
         excludeBrandTerms: ["acme"],
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(rankedKeywords).toHaveBeenCalledWith(
@@ -228,7 +228,7 @@ describe("DataForSEO research MCP tools", () => {
         keywords: ["coffee"],
         excludeDomains: ["directory.example"],
       },
-      toolExtra,
+      toolContext,
     );
 
     const content = z
@@ -285,7 +285,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await getKeywordMetricsTool.handler(
       { projectId: "project_1", keywords: ["seo automation"] },
-      toolExtra,
+      toolContext,
     );
 
     expect(keywordOverview).toHaveBeenCalledWith(
@@ -340,7 +340,7 @@ describe("DataForSEO research MCP tools", () => {
         keywords: ["low", "high", "medium"],
         sortBy: "search_volume",
       },
-      toolExtra,
+      toolContext,
     );
 
     const rows = z
@@ -372,7 +372,7 @@ describe("DataForSEO research MCP tools", () => {
         keywords: ["seo"],
         includeMonthlyTrends: false,
       },
-      toolExtra,
+      toolContext,
     );
 
     const rows = z

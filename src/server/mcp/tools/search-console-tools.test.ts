@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GscApiError, GscNotConnectedError } from "@/server/lib/gscErrors";
 import * as searchConsoleTools from "./search-console-tools";
-import { makeToolExtra } from "./tool-test-support";
+import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
 vi.mock("@/server/features/gsc/services/GscService", () => ({
   GscService: mocks.GscService,
 }));
-const toolExtra = makeToolExtra();
+const toolContext = makeToolContext();
 
 describe("search console MCP tools", () => {
   beforeEach(() => {
@@ -75,7 +75,7 @@ describe("search console MCP tools", () => {
           },
         ],
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.GscService.getPerformance).toHaveBeenCalledWith(
@@ -111,7 +111,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -133,7 +133,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -151,7 +151,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1", dimensions: ["query", "searchAppearance"] },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -165,7 +165,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1", startDate: "2026-01-01" },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -181,7 +181,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -208,7 +208,7 @@ describe("search console MCP tools", () => {
 
     const result = await getSearchConsolePerformanceTool.handler(
       { projectId: "project_1" },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.GscService.getPerformance).toHaveBeenCalledWith(
@@ -242,7 +242,7 @@ describe("search console MCP tools", () => {
         projectId: "project_1",
         urls: ["https://example.com/a", "https://example.com/bad"],
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.GscService.inspectUrls).toHaveBeenCalledWith(
@@ -268,7 +268,7 @@ describe("search console MCP tools", () => {
 
     const result = await inspectUrlsTool.handler(
       { projectId: "project_1", urls: ["https://example.com/a"] },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
@@ -284,7 +284,7 @@ describe("search console MCP tools", () => {
 
     const result = await inspectUrlsTool.handler(
       { projectId: "project_1", urls: ["https://example.com/a"] },
-      toolExtra,
+      toolContext,
     );
 
     expect(result.structuredContent).toMatchObject({
