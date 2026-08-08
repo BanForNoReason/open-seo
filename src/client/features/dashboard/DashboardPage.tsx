@@ -16,6 +16,7 @@ import {
   GscCard,
 } from "@/client/features/dashboard/DashboardCards";
 import { McpConnectCard } from "@/client/features/dashboard/McpConnectCard";
+import { WorkspaceMergeBanner } from "@/client/features/dashboard/WorkspaceMergeBanner";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import type { DashboardActivation } from "@/server/features/dashboard/services/DashboardService";
 import {
@@ -305,6 +306,8 @@ export function DashboardPage({ projectId }: { projectId: string }) {
     <div className="px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
+
+        <WorkspaceMergeBanner />
 
         <OnboardingChecklist projectId={projectId} activation={activation} />
 
