@@ -25,7 +25,10 @@ import {
   MAX_CONFIGS_PER_PROJECT,
   rankCheckCostApprovalError,
 } from "@/shared/rank-tracking";
-import { resolveMarket } from "@/shared/keyword-locations";
+import {
+  resolveKeywordDataLanguage,
+  resolveMarket,
+} from "@/shared/keyword-locations";
 import { getLatestResults } from "./rankTrackingResults";
 import { toSqliteTimestamp } from "@/server/features/rank-tracking/rankTrackingTimestamps";
 import { RankTrackingKeywordService } from "./RankTrackingKeywordService";
@@ -264,7 +267,12 @@ async function refreshKeywordMetrics(
   const metrics = await fetchKeywordMetricsForList(client, {
     keywords: keywords.map((kw) => kw.keyword),
     locationCode: config.locationCode,
-    languageCode: config.languageCode,
+    // Trackers can pair any SERP language with any country; the keyword-data
+    // APIs only serve the country's own languages.
+    languageCode: resolveKeywordDataLanguage(
+      config.locationCode,
+      config.languageCode,
+    ),
     // Local configs get volume/CPC scoped to the tracked city; national
     // numbers can overstate local demand by orders of magnitude.
     locationName: config.locationName ?? undefined,
