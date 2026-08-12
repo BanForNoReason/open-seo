@@ -112,7 +112,7 @@ export const featurePages = {
       {
         question: "Can I use OpenSEO as a free keyword research tool?",
         answer:
-          "Not unlimited: quality keyword data costs money everywhere, which is why the big SEO suites run $100/month and up. OpenSEO is the most affordable option; you can start for free, and paid plans start at $10/month with usage credits included. It's also open source, so you can self-host with your own DataForSEO account.",
+          "Not unlimited: quality keyword data costs money everywhere, which is why the big SEO suites run $100/month and up. You can start OpenSEO for free; the paid plan is $10/month with usage credits included. It's also open source, so you can self-host with your own DataForSEO account.",
       },
       {
         question: "Does OpenSEO show live search results?",
@@ -123,7 +123,7 @@ export const featurePages = {
     guides: {
       title: "The Keyword Research Strategy Library",
       description:
-        "Practitioner plays that treat keyword research as demand discovery, not a volume spreadsheet. Each guide is a full walkthrough with the copy-paste MCP prompt that runs it.",
+        "Practitioner strategies for using keyword research to discover demand. Each guide includes a full walkthrough and a copy-paste MCP prompt.",
       items: [
         {
           label: "Seed from conversation, not a volume report",
@@ -139,8 +139,7 @@ export const featurePages = {
         },
         {
           label: "Search-intent mapping (hot / warm / cold)",
-          description:
-            "Label every keyword by buying temperature before you write.",
+          description: "Sort keywords by buying temperature before you write.",
           href: "/library/keyword-research/search-intent-mapping",
         },
         {
@@ -151,7 +150,7 @@ export const featurePages = {
         },
       ],
       cta: {
-        label: "Browse the full Strategy Library",
+        label: "Browse all keyword research strategies",
         href: "/library/keyword-research",
       },
     },
