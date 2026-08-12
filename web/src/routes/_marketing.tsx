@@ -52,6 +52,7 @@ function getMobileNavItems(githubStarCount: string) {
       label: "Product",
       links: [
         { label: "Features", href: "/features" },
+        { label: "Roadmap", href: "/roadmap" },
         { label: "Pricing", href: "/pricing" },
       ],
     },
@@ -170,6 +171,12 @@ function MarketingLayout() {
             <div className="hidden items-center justify-center gap-5 md:flex">
               <FeatureDropdown />
               <ResourcesDropdown />
+              <Link
+                to="/roadmap"
+                className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900"
+              >
+                Roadmap
+              </Link>
               <Link
                 to="/pricing"
                 className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900"

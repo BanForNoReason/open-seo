@@ -28,6 +28,7 @@ const STATIC_PATHS = [
   "/backlink-checker",
   "/open-source-seo",
   "/google-search-console-mcp",
+  "/roadmap",
   ...Object.values(FEATURE_PAGE_SLUGS).map((slug) => `/features/${slug}`),
 ];
 
