@@ -21,6 +21,11 @@ export type FeaturePage = {
   showMetrics?: boolean;
   useCases: string[];
   differentiators: string[];
+  featuredLink?: {
+    title: string;
+    description: string;
+    href: string;
+  };
   related: Array<{
     label: string;
     href: string;
@@ -207,7 +212,7 @@ export const featurePages = {
     ],
     related: [
       { label: "Domain Overview", href: "/features/domain-overview" },
-      { label: "Backlinks", href: "/features/backlinks" },
+      { label: "Backlinks", href: "/features/backlink-checker" },
       { label: "Keyword Research", href: "/features/keyword-research" },
     ],
     faqs: [
@@ -232,7 +237,7 @@ export const featurePages = {
     slug: FEATURE_PAGE_SLUGS.backlinks,
     eyebrow: "Backlinks",
     navDescription: "Check links and referring domains.",
-    title: "Backlink analysis for understanding a domain's link profile",
+    title: "Backlink checker for understanding a domain's link profile",
     description:
       "Analyze backlinks, referring domains, and linked pages without separating link research from the rest of your SEO workspace.",
     primaryKeyword: "backlink analysis",
@@ -278,13 +283,19 @@ export const featurePages = {
       "Self-host or adapt backlink reporting for your team's workflow.",
       "MCP support lets an AI agent pull backlink context during SEO research.",
     ],
+    featuredLink: {
+      title: "Free backlink checker",
+      description:
+        "Check any domain's backlink summary and top 15 backlinks. No signup required.",
+      href: "/backlink-checker",
+    },
     related: [
-      { label: "Free Backlink Checker", href: "/backlink-checker" },
       {
         label: "Link Prospecting",
         href: "/docs/skills/link-prospecting",
       },
       { label: "Domain Overview", href: "/features/domain-overview" },
+      { label: "OpenSEO MCP", href: "/features/mcp" },
     ],
     faqs: [
       {
@@ -360,7 +371,7 @@ export const featurePages = {
         href: "/docs/skills/competitor-analysis",
       },
       { label: "Keyword Research", href: "/features/keyword-research" },
-      { label: "Backlinks", href: "/features/backlinks" },
+      { label: "Backlinks", href: "/features/backlink-checker" },
     ],
     faqs: [
       {
