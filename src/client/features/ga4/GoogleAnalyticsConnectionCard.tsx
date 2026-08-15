@@ -19,9 +19,10 @@ import {
   listGa4Properties,
   setGa4Property,
 } from "@/serverFunctions/ga4";
+import { useSession } from "@/lib/auth-client";
 import {
-  GA4_OAUTH_APP_PENDING,
   GA4_SELF_HOSTED_SETUP_DOCS_URL,
+  isGa4ConnectAvailable,
 } from "@/shared/ga4";
 
 export function GoogleAnalyticsConnectionCard({
@@ -37,6 +38,7 @@ export function GoogleAnalyticsConnectionCard({
 }) {
   const hosted = isHostedClientAuthMode();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [picking, setPicking] = React.useState(false);
   const [selection, setSelection] = React.useState<Ga4PropertySelection | null>(
     null,
@@ -52,7 +54,7 @@ export function GoogleAnalyticsConnectionCard({
   // approval, but keep the card for users who already hold a grant so they
   // can finish property selection or disconnect.
   const hiddenPendingApproval =
-    GA4_OAUTH_APP_PENDING &&
+    !isGa4ConnectAvailable(session?.user?.email) &&
     hosted &&
     !connected &&
     !connection?.currentUserHasGrant;
