@@ -28,6 +28,16 @@ import {
   locationCodeSchema,
   projectIdSchema,
 } from "@/server/mcp/schemas";
+import { assertFilterConditionBudget } from "@/server/lib/dataforseo/filters";
+import {
+  buildRankedKeywordsScopeFilter,
+  type ScopeFilter,
+} from "@/server/lib/dataforseo/researchScopeFilters";
+import { parseResearchTargetOrThrow } from "@/server/lib/domainUtils";
+import {
+  RESEARCH_SCOPE_PARAM_DESCRIPTION,
+  researchScopeSchema,
+} from "@/shared/researchScope";
 
 const rankedResultTypeSchema = z.enum([
   "organic",
@@ -128,6 +138,9 @@ const getRankedKeywordsInputSchema = {
   target: rankedTargetSchema.describe(
     "Domain (no protocol/www) or absolute page URL to list ranked keywords for.",
   ),
+  scope: researchScopeSchema
+    .optional()
+    .describe(RESEARCH_SCOPE_PARAM_DESCRIPTION),
   market: marketSchema,
   locationCode: locationCodeSchema
     .optional()
@@ -148,9 +161,7 @@ const getRankedKeywordsInputSchema = {
   includeSubdomains: z
     .boolean()
     .optional()
-    .describe(
-      "Include subdomains of the target. Defaults to true for domains, false for page URLs.",
-    ),
+    .describe("Deprecated: use scope ('subdomains' or 'domain') instead."),
   minSearchVolume: z
     .number()
     .int()
@@ -446,18 +457,27 @@ function pushAnd(filters: unknown[], condition: unknown[]) {
   filters.push(condition);
 }
 
-function buildRankedKeywordFilters(args: {
-  minSearchVolume?: number;
-  maxRank?: number;
-  excludeBrandTerms?: string[];
-}) {
+function buildRankedKeywordFilters(
+  args: {
+    minSearchVolume?: number;
+    maxRank?: number;
+    excludeBrandTerms?: string[];
+  },
+  scopeFilter?: ScopeFilter,
+) {
   const filters: unknown[] = [];
+  let conditionCount = 0;
+  if (scopeFilter) {
+    for (const clause of scopeFilter.clauses) pushAnd(filters, clause);
+    conditionCount += scopeFilter.conditionCount;
+  }
   if (args.minSearchVolume != null) {
     pushAnd(filters, [
       "keyword_data.keyword_info.search_volume",
       ">=",
       args.minSearchVolume,
     ]);
+    conditionCount += 1;
   }
   if (args.maxRank != null) {
     pushAnd(filters, [
@@ -465,12 +485,15 @@ function buildRankedKeywordFilters(args: {
       "<=",
       args.maxRank,
     ]);
+    conditionCount += 1;
   }
   if (args.excludeBrandTerms != null) {
     for (const term of args.excludeBrandTerms) {
       pushAnd(filters, ["keyword_data.keyword", "not_ilike", `%${term}%`]);
     }
+    conditionCount += args.excludeBrandTerms.length;
   }
+  assertFilterConditionBudget(conditionCount);
   return filters.length > 0 ? filters : undefined;
 }
 
@@ -638,6 +661,8 @@ export const getRankedKeywordsTool = {
     outputSchema: {
       keywords: z.array(looseObjectOutputSchema),
       totalCount: z.number().nullable(),
+      target: z.string().optional(),
+      scope: researchScopeSchema.optional(),
       ...optionalMetaOutputSchema,
     },
     annotations: {
@@ -648,39 +673,61 @@ export const getRankedKeywordsTool = {
   },
   handler: withMcpProjectAuth(async (args: GetRankedKeywordsArgs, context) => {
     const client = createDataforseoClient(context.billing);
-    const targetIsPage = /^https?:\/\//.test(args.target);
+    // Legacy includeSubdomains only ever selected between whole-host scopes
+    // for bare domains; for page URLs it meant exact-page results. Mapping it
+    // to domain/subdomains for a URL target would silently drop the path.
+    const parsedDefault = parseResearchTargetOrThrow(args.target);
+    const legacyScope =
+      args.includeSubdomains == null
+        ? undefined
+        : parsedDefault.path === ""
+          ? args.includeSubdomains
+            ? "subdomains"
+            : "domain"
+          : "exact_url";
+    const requestedScope = args.scope ?? legacyScope;
+    const target = requestedScope
+      ? parseResearchTargetOrThrow(args.target, requestedScope)
+      : parsedDefault;
+    const scopeFilter = buildRankedKeywordsScopeFilter(target);
     const market = resolveMarketSelector(args, context.project);
     const keywords = await client.domain.rankedKeywords({
-      target: args.target,
+      target: target.hostname,
       locationCode: market.locationCode,
       languageCode: market.languageCode,
       limit: args.limit ?? 50,
       offset: args.offset,
       orderBy: sortOrderByRankedMode(args.sortBy),
-      filters: buildRankedKeywordFilters({
-        minSearchVolume: args.minSearchVolume,
-        maxRank: args.maxRank,
-        excludeBrandTerms: args.excludeBrandTerms,
-      }),
+      filters: buildRankedKeywordFilters(
+        {
+          minSearchVolume: args.minSearchVolume,
+          maxRank: args.maxRank,
+          excludeBrandTerms: args.excludeBrandTerms,
+        },
+        scopeFilter,
+      ),
       itemTypes: args.resultTypes,
-      includeSubdomains: args.includeSubdomains ?? !targetIsPage,
     });
 
     const rankedRows = keywords.items.map(toRankedKeywordRow);
+    const targetLabel = `${target.display} (scope: ${target.scope})`;
     const text =
       rankedRows.length === 0
-        ? `No ranked keyword rows for ${args.target}.`
-        : `Found ${rankedRows.length} ranked keyword rows for ${args.target}${keywords.totalCount != null ? ` (of ${keywords.totalCount} total)` : ""}:\n${formatMcpTable(rankedRows, RANKED_KEYWORD_COLUMNS)}`;
+        ? `No ranked keyword rows for ${targetLabel}.`
+        : `Found ${rankedRows.length} ranked keyword rows for ${targetLabel}${keywords.totalCount != null ? ` (of ${keywords.totalCount} total)` : ""}:\n${formatMcpTable(rankedRows, RANKED_KEYWORD_COLUMNS)}`;
     return mcpResponse({
       text,
       meta: buildProjectMeta(
         context,
         args.projectId,
         `/p/${args.projectId}/domain`,
+        { domain: target.display, scope: target.scope },
       ),
       structuredContent: {
         keywords: keywords.items,
         totalCount: keywords.totalCount,
+        target: target.display,
+        scope: target.scope,
       },
     });
   }),

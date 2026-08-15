@@ -184,33 +184,6 @@ describe("DataForSEO research MCP tools", () => {
     expect(textContent(result)).toContain("Do you serve breakfast?");
   });
 
-  it("passes only explicit brand exclusions to ranked keyword filters", async () => {
-    const rankedKeywords = vi.fn().mockResolvedValue({
-      items: [],
-      totalCount: 0,
-    });
-
-    mocks.createDataforseoClient.mockReturnValue({
-      domain: { rankedKeywords },
-    });
-    const { getRankedKeywordsTool } = researchTools;
-
-    await getRankedKeywordsTool.handler(
-      {
-        projectId: "project_1",
-        target: "acmeexample.com",
-        excludeBrandTerms: ["acme"],
-      },
-      toolContext,
-    );
-
-    expect(rankedKeywords).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filters: [["keyword_data.keyword", "not_ilike", "%acme%"]],
-      }),
-    );
-  });
-
   it("filters SERP competitors only by explicit excluded domains", async () => {
     const serpCompetitors = vi.fn().mockResolvedValue([
       { domain: "directory.example", visibility: 10 },
@@ -380,5 +353,69 @@ describe("DataForSEO research MCP tools", () => {
       .passthrough()
       .parse(result.structuredContent).keywords;
     expect(rows[0]).not.toHaveProperty("monthly_searches");
+  });
+});
+
+describe("get_ranked_keywords scope handling", () => {
+  const rankedKeywords =
+    vi.fn<
+      (input: {
+        filters?: unknown[];
+      }) => Promise<{ items: unknown[]; totalCount: number }>
+    >();
+
+  beforeEach(() => {
+    mocks.getProjectForOrganization.mockResolvedValue(usProjectRow);
+    rankedKeywords.mockResolvedValue({ items: [], totalCount: 0 });
+    mocks.createDataforseoClient.mockReturnValue({
+      domain: { rankedKeywords },
+    });
+  });
+
+  it("passes only explicit brand exclusions to ranked keyword filters", async () => {
+    await researchTools.getRankedKeywordsTool.handler(
+      {
+        projectId: "project_1",
+        target: "acmeexample.com",
+        scope: "subdomains",
+        excludeBrandTerms: ["acme"],
+      },
+      toolContext,
+    );
+
+    expect(rankedKeywords).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: [["keyword_data.keyword", "not_ilike", "%acme%"]],
+      }),
+    );
+  });
+
+  it("defaults a bare domain to subdomains scope with no scope filters", async () => {
+    const result = await researchTools.getRankedKeywordsTool.handler(
+      { projectId: "project_1", target: "acmeexample.com" },
+      toolContext,
+    );
+
+    expect(rankedKeywords).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: "acmeexample.com",
+        filters: undefined,
+      }),
+    );
+    expect(result.structuredContent).toMatchObject({
+      target: "acmeexample.com",
+      scope: "subdomains",
+    });
+  });
+
+  // The clause shape itself is pinned in researchScopeFilters.test.ts; here
+  // only "the scope filter reaches the API call" is the invariant.
+  it("sends scope filters for an explicit narrower scope", async () => {
+    await researchTools.getRankedKeywordsTool.handler(
+      { projectId: "project_1", target: "acmeexample.com", scope: "domain" },
+      toolContext,
+    );
+
+    expect(Array.isArray(rankedKeywords.mock.calls[0]?.[0].filters)).toBe(true);
   });
 });

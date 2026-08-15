@@ -7,6 +7,7 @@ import { getRankTrackerTool } from "./get-rank-tracker";
 import { getSerpResultsTool } from "./get-serp-results";
 import { researchKeywordsTool } from "./research-keywords";
 import { makeToolContext, textContent } from "./tool-test-support";
+import type * as backlinksTargetModule from "@/server/lib/dataforseoBacklinksTarget";
 
 // Verifies that each tool renders its actual row data into the text content
 // block (not just a count), across the tools whose data comes from OpenSEO
@@ -29,9 +30,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
-vi.mock("@/server/lib/dataforseo", () => ({
-  createDataforseoClient: mocks.createDataforseoClient,
-}));
+vi.mock("@/server/lib/dataforseo", async () => {
+  // Real target normalizer (pure, leaf module) so scope resolution in the
+  // backlinks tools matches production.
+  const targets = await vi.importActual<typeof backlinksTargetModule>(
+    "@/server/lib/dataforseoBacklinksTarget",
+  );
+  return {
+    createDataforseoClient: mocks.createDataforseoClient,
+    normalizeBacklinksTarget: targets.normalizeBacklinksTarget,
+  };
+});
 vi.mock("@/server/features/projects/services/ProjectService", () => ({
   ProjectService: {
     getProjectForOrganization: mocks.getProjectForOrganization,

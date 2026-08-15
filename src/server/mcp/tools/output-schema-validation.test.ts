@@ -113,6 +113,8 @@ describe("DataForSEO research tool output schemas", () => {
     const schema = objectSchema(getBacklinksProfileTool.config.outputSchema);
 
     const result = await schema.safeParseAsync({
+      target: "example.com",
+      scope: "domain",
       backlinks: backlinkPage,
       meta: {
         organizationId: "org_123",
