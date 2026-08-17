@@ -142,6 +142,8 @@ Start with one focused workflow instead of asking your agent to "do SEO" broadly
 
 If your client cannot connect, check that the server URL is exactly `https://app.openseo.so/mcp`.
 
+If Codex reports `Authorization server response missing required issuer: expected https://app.openseo.so`, upgrade Codex CLI or the Codex desktop app to 0.147.0 or later. Codex 0.143 through 0.146 drop the issuer from the OAuth callback. You can also [connect with an API key](#connect-with-an-api-key) instead of OAuth.
+
 If authorization fails, disconnect the OpenSEO server in your client, add it again, and repeat the login flow.
 
 If your agent cannot find a project, ask it to list OpenSEO projects first and use the returned project ID in later tool calls.
