@@ -6,6 +6,7 @@ import {
 import type { z } from "zod";
 import {
   createMcpToolContext,
+  MCP_AUTH_CONTEXT_PROP,
   type McpProps,
   type ToolContext,
 } from "@/server/mcp/context";
@@ -58,7 +59,7 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
-import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
+import { GA4_OAUTH_APP_PENDING, isGa4ConnectAvailable } from "@/shared/ga4";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -179,7 +180,10 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getKeywordMetricsTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
-  if (!GA4_OAUTH_APP_PENDING) {
+  if (
+    !GA4_OAUTH_APP_PENDING ||
+    isGa4ConnectAvailable(authProps[MCP_AUTH_CONTEXT_PROP].userEmail)
+  ) {
     register(getGoogleAnalyticsOrganicLandingPagesTool);
     register(getGoogleAnalyticsPagePerformanceTool);
     register(getGoogleAnalyticsKeyEventsTool);
