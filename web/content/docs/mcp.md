@@ -113,7 +113,12 @@ OpenSEO MCP exposes tools for SEO research workflows:
 - Fetch live Google organic SERP results for keywords.
 - Find exact keyword, page, rank, volume, CPC, intent, and traffic rows for a domain or page.
 - Compare SERP competitors across a supplied keyword set.
-- Search local businesses near a coordinate, fetch one Maps or Local Finder SERP, and read Google Business Q&A when needed.
+- Search local businesses near a coordinate, filtering by rating, review count, or claimed status.
+- Fetch one Maps or Local Finder SERP, and read Google Business Q&A when needed.
+- Audit a Google Business Profile: categories, rating, hours, photos, and claim status.
+- Collect Google reviews (including reviews from other sites) and Google Business posts.
+- Look up valid Google Business category slugs.
+- Check Google Maps rank at each point of a grid around a business.
 - Hydrate keywords with search volume, difficulty, intent, CPC, and trends.
 - List saved keywords from an OpenSEO project.
 - Save useful keywords back to OpenSEO.

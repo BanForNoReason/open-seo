@@ -45,6 +45,13 @@ import {
   getRankedKeywordsTool,
   searchLocalBusinessesTool,
 } from "@/server/mcp/tools/dataforseo-research-tools";
+import {
+  getBusinessProfileTool,
+  getBusinessReviewsTool,
+  getBusinessUpdatesTool,
+  getLocalRankGridTool,
+  listBusinessCategoriesTool,
+} from "@/server/mcp/tools/local-seo-tools";
 import { researchKeywordsTool } from "@/server/mcp/tools/research-keywords";
 import { saveKeywordsTool } from "@/server/mcp/tools/save-keywords";
 import {
@@ -120,7 +127,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
     {
       name: "OpenSEO MCP",
       title: "OpenSEO",
-      version: "0.0.11",
+      version: "0.0.12",
       description:
         "SEO research tools for AI agents: keyword research and metrics, SERP and local SERP results, domain and backlink analysis, rank tracking, and Google Search Console performance.",
       websiteUrl: "https://openseo.so",
@@ -164,6 +171,11 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(searchLocalBusinessesTool);
   register(getLocalSerpResultsTool);
   register(getGoogleBusinessQuestionsTool);
+  register(getBusinessProfileTool);
+  register(getBusinessReviewsTool);
+  register(getBusinessUpdatesTool);
+  register(listBusinessCategoriesTool);
+  register(getLocalRankGridTool);
   register(getKeywordMetricsTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
