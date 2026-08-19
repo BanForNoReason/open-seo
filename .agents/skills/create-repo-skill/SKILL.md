@@ -39,6 +39,7 @@ metadata:
      - `web/content/docs/skills/index.md` — bullet in the right workflow section
      - `web/content/docs/skills/meta.json` — nav entry
      - `.agents/skills/seo-coach/SKILL.md` — one line in the "What each workflow does" roster
+     - `plugins/openseo/skills/<name>` — add the skill to the `skills` list in `scripts/sync-plugin-skills.mjs`, then run `pnpm sync-plugin-skills` (this directory holds real copies, not symlinks — the Claude Code and Codex plugins bundle from here, and Codex's installer silently skips symlinked files, so a symlink would ship a skill-less plugin). `pnpm ci:check` re-runs the sync and fails on drift, so a missed update here is caught, but the skill count and roster below are prose and aren't checked — update them by hand: both `plugins/openseo/*/plugin.json` `description` fields, the Codex manifest's `interface.longDescription`, and the skill lists in `web/content/docs/claude-code-plugin.md` and `web/content/docs/codex-plugin.md`
      - Optional: `web/src/lib/feature-pages.ts` and `web/content/docs/skills/setup.md` if it deserves marketing/setup placement
 
 3. If the skill references MCP tools, use exact tool names and keep them in sync with `src/server/mcp/server.ts` — the tool names in skills are load-bearing for agents following them.

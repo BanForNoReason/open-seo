@@ -17,6 +17,8 @@ For the most current setup UI and a copyable endpoint, open [AI & MCP in OpenSEO
 
 ## Claude Code
 
+The [OpenSEO plugin](/docs/claude-code-plugin) is the preferred way to connect Claude Code — one install adds MCP and all nine Agent Skills together. Use the steps below only if you want MCP on its own.
+
 Use user scope to make OpenSEO available across projects. Use local scope for the current repository.
 
 ```bash
@@ -53,6 +55,8 @@ Claude Desktop custom connectors require a Claude plan that supports custom conn
 4. Approve the OpenSEO login when prompted.
 
 ## Codex CLI
+
+The [OpenSEO plugin](/docs/codex-plugin) is the preferred way to connect Codex CLI — one install adds MCP and all nine Agent Skills together. Use the steps below only if you want MCP on its own.
 
 Run this in your terminal:
 
