@@ -37,6 +37,10 @@ import {
 } from "@/server/mcp/tools/google-analytics-tools";
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
+import {
+  getProjectContextTool,
+  updateProjectContextTool,
+} from "@/server/mcp/tools/project-context";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
   findSerpCompetitorsTool,
@@ -153,6 +157,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(whoamiTool);
   register(listProjectsTool);
   register(createProjectTool);
+  register(getProjectContextTool);
+  register(updateProjectContextTool);
   register(listSavedKeywordsTool);
   register(researchKeywordsTool);
   register(saveKeywordsTool);

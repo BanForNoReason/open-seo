@@ -13,6 +13,23 @@ type ToolCategory = {
 
 const toolCategories: ToolCategory[] = [
   {
+    label: "Project Context",
+    tools: [
+      {
+        name: "get_project_context",
+        title: "Get project context",
+        description:
+          "Read your project's goals, positioning, competitors, and key pages.",
+      },
+      {
+        name: "update_project_context",
+        title: "Update project context",
+        description:
+          "Save what an agent learned back to your shared project context.",
+      },
+    ],
+  },
+  {
     label: "Keywords",
     tools: [
       {

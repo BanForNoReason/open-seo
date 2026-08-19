@@ -16,6 +16,15 @@ Use this when asked for an SEO audit or review of a domain, especially when the 
 - Domain to audit
 - `projectId` (use `list_projects`; if no project matches the domain, create one with `create_project`)
 
+## Project context
+
+The project-context tools are free and shared with the app and other agents.
+
+1. Call `get_project_context` first and ground the report in it — what the business does decides which findings matter and what the one thing should be.
+2. This skill needs `business_overview`. If it is empty, run a minimal inline setup: infer what the business does from the site and confirm it with the user in one question, write it back with `update_project_context`, then continue the audit. Never front-load the full interview; suggest `seo-project-setup` at the end for the rest.
+3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
+4. On finish, write back what is durable — a corrected `business_overview`, the pages the report singles out via `addKeyPages` — and append a research log entry: `{ appendResearchLog: { summary: "Site audit: <domain>. Verdict: <conclusion>" } }`.
+
 ## OpenSEO MCP tools
 
 - `whoami`: confirm connection and remaining credits before spending anything. If OpenSEO is not connected, stop and ask the user to connect it.

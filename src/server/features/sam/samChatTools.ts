@@ -8,9 +8,34 @@ import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overv
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
+import { addRankTrackingKeywordsTool } from "@/server/mcp/tools/add-rank-tracking-keywords";
+import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
+import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
+import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
+import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
+import {
+  getAuditIssuesTool,
+  getAuditPagesTool,
+  getAuditStatusTool,
+  runSiteAuditTool,
+} from "@/server/mcp/tools/site-audit-tools";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
+import { buildUpdateProjectContextTool } from "@/server/mcp/tools/project-context";
+import {
+  getGoogleAnalyticsAudienceBreakdownTool,
+  getGoogleAnalyticsEcommercePerformanceTool,
+  getGoogleAnalyticsKeyEventsTool,
+  getGoogleAnalyticsMeasurementHealthTool,
+  getGoogleAnalyticsOrganicLandingPagesTool,
+  getGoogleAnalyticsOrganicOverviewTool,
+  getGoogleAnalyticsPagePerformanceTool,
+  getGoogleAnalyticsSiteSearchTool,
+  getGoogleAnalyticsTrafficAcquisitionTool,
+  getSearchOpportunitiesTool,
+} from "@/server/mcp/tools/google-analytics-tools";
+import { GA4_OAUTH_APP_PENDING, isGa4ConnectAvailable } from "@/shared/ga4";
 import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
@@ -182,9 +207,15 @@ function scrapeTools(projectDomain: string | null): ToolSet {
 /**
  * Builds SAM's tool surface as an AI SDK ToolSet: the full MCP toolset plus the
  * free site-reading tools. Every tool the OpenSEO MCP server exposes is
- * available. Auth and billing context are passed directly to the shared tool
- * handlers. DataForSEO spend is metered inside the shared client, so tool calls
- * draw down the org's credits automatically.
+ * available except the ones a project-bound chat can't use (list_projects,
+ * create_project) and get_project_context (already a context block). Auth and
+ * billing context are passed directly to the shared tool handlers. DataForSEO
+ * spend is metered inside the shared client, so tool calls draw down the org's
+ * credits automatically.
+ *
+ * When the MCP server gains a tool, add it here too — this list drifted for six
+ * weeks once (audit + GA4 + rank-tracker management were MCP-only) before
+ * anyone noticed.
  */
 export function buildSamMcpTools(
   authContext: ToolAuthContext,
@@ -195,6 +226,30 @@ export function buildSamMcpTools(
   const adaptTool = <Shape extends ZodRawShape>(
     definition: McpToolDefinition<Shape>,
   ) => adaptMcpTool(definition, toolContext, projectId);
+
+  // The GA4 tools define inputSchema as a built ZodObject instead of a raw
+  // shape; unwrap it so the same adapter (projectId stripping included) applies.
+  type AnyMcpHandler = McpToolDefinition<ZodRawShape>["handler"];
+  const adaptObjectTool = (definition: {
+    name: string;
+    config: { description: string; inputSchema: { shape: ZodRawShape } };
+    handler: (args: never, context: ToolContext) => Promise<CallToolResult>;
+  }) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same arg shape; the adapter rebuilds z.object from the unwrapped shape before calling it
+    const handler = definition.handler as AnyMcpHandler;
+    return adaptMcpTool(
+      {
+        name: definition.name,
+        config: {
+          description: definition.config.description,
+          inputSchema: definition.config.inputSchema.shape,
+        },
+        handler,
+      },
+      toolContext,
+      projectId,
+    );
+  };
 
   // Note: no `list_projects`. SAM is bound to the session's project, so
   // discovering other projects isn't part of its job — every project-scoped tool
@@ -210,6 +265,9 @@ export function buildSamMcpTools(
     }),
     ...scrapeTools(project.domain),
     whoami: adaptTool(whoamiTool),
+    // Writes only: the project's memory is already injected into every turn as
+    // a read-only context block, so get_project_context would just re-fetch it.
+    update_project_context: adaptTool(buildUpdateProjectContextTool("sam")),
     list_saved_keywords: adaptTool(listSavedKeywordsTool),
     research_keywords: adaptTool(researchKeywordsTool),
     save_keywords: adaptTool(saveKeywordsTool),
@@ -218,7 +276,12 @@ export function buildSamMcpTools(
     get_backlinks_overview: adaptTool(getBacklinksOverviewTool),
     get_backlinks_profile: adaptTool(getBacklinksProfileTool),
     get_serp_results: adaptTool(getSerpResultsTool),
+    create_rank_tracker: adaptTool(createRankTrackerTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
+    add_rank_tracking_keywords: adaptTool(addRankTrackingKeywordsTool),
+    remove_rank_tracking_keywords: adaptTool(removeRankTrackingKeywordsTool),
+    estimate_rank_tracker_cost: adaptTool(estimateRankTrackerCostTool),
+    run_rank_tracker: adaptTool(runRankTrackerTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),
     find_serp_competitors: adaptTool(findSerpCompetitorsTool),
     search_local_businesses: adaptTool(searchLocalBusinessesTool),
@@ -232,5 +295,43 @@ export function buildSamMcpTools(
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
+    // Same rollout gate as the MCP server: GA4 tools are hidden until the
+    // OAuth app clears verification, except for allowlisted users.
+    ...(!GA4_OAUTH_APP_PENDING || isGa4ConnectAvailable(authContext.userEmail)
+      ? {
+          get_google_analytics_organic_landing_pages: adaptObjectTool(
+            getGoogleAnalyticsOrganicLandingPagesTool,
+          ),
+          get_google_analytics_page_performance: adaptObjectTool(
+            getGoogleAnalyticsPagePerformanceTool,
+          ),
+          get_google_analytics_key_events: adaptObjectTool(
+            getGoogleAnalyticsKeyEventsTool,
+          ),
+          get_search_opportunities: adaptObjectTool(getSearchOpportunitiesTool),
+          get_google_analytics_organic_overview: adaptObjectTool(
+            getGoogleAnalyticsOrganicOverviewTool,
+          ),
+          get_google_analytics_traffic_acquisition: adaptObjectTool(
+            getGoogleAnalyticsTrafficAcquisitionTool,
+          ),
+          get_google_analytics_measurement_health: adaptObjectTool(
+            getGoogleAnalyticsMeasurementHealthTool,
+          ),
+          get_google_analytics_ecommerce_performance: adaptObjectTool(
+            getGoogleAnalyticsEcommercePerformanceTool,
+          ),
+          get_google_analytics_site_search: adaptObjectTool(
+            getGoogleAnalyticsSiteSearchTool,
+          ),
+          get_google_analytics_audience_breakdown: adaptObjectTool(
+            getGoogleAnalyticsAudienceBreakdownTool,
+          ),
+        }
+      : {}),
+    run_site_audit: adaptTool(runSiteAuditTool),
+    get_audit_status: adaptTool(getAuditStatusTool),
+    get_audit_issues: adaptTool(getAuditIssuesTool),
+    get_audit_pages: adaptTool(getAuditPagesTool),
   };
 }
