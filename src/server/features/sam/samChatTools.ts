@@ -35,7 +35,6 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
-import { GA4_OAUTH_APP_PENDING, isGa4ConnectAvailable } from "@/shared/ga4";
 import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
@@ -137,6 +136,81 @@ function adaptMcpTool<Shape extends ZodRawShape>(
       }
     },
   });
+}
+
+// Audits run for minutes, and a chat model cannot sleep — given an instant
+// status tool it spin-polls, and every call plus its result is persisted into
+// the session history. SAM's get_audit_status therefore waits server-side:
+// while the audit is running, it re-reads every few seconds and returns as
+// soon as the status line changes (or when the budget runs out), so one tool
+// call buys ~a minute of quiet waiting. The sleep sits BETWEEN adapted calls,
+// so each re-read scopes its own short-lived DB client rather than holding one
+// through the wait; each re-read also emits its own mcp:tool_call event, so
+// telemetry counts server polls, not model calls.
+const AUDIT_STATUS_POLL_MS = 2_000;
+const AUDIT_STATUS_WAIT_BUDGET_MS = 50_000;
+
+// The adapted tool returns toModelOutput's { summary, data } flattening; the
+// summary line carries phase + page counts, so a changed line IS progress.
+const auditProgressLine = (result: unknown): string | null =>
+  typeof result === "object" &&
+  result !== null &&
+  "summary" in result &&
+  typeof result.summary === "string"
+    ? result.summary
+    : null;
+
+const auditIsRunning = (result: unknown): boolean => {
+  if (typeof result !== "object" || result === null || !("data" in result)) {
+    return false;
+  }
+  const data = result.data;
+  if (typeof data !== "object" || data === null || !("status" in data)) {
+    return false;
+  }
+  const status = data.status;
+  return (
+    typeof status === "object" &&
+    status !== null &&
+    "status" in status &&
+    status.status === "running"
+  );
+};
+
+export function waitingAuditStatusTool(
+  adapt: (
+    definition: McpToolDefinition<typeof getAuditStatusTool.config.inputSchema>,
+  ) => Tool,
+): Tool {
+  const base = adapt({
+    ...getAuditStatusTool,
+    config: {
+      ...getAuditStatusTool.config,
+      description: `${getAuditStatusTool.config.description} While the audit is running this call waits up to ~1 minute server-side and returns as soon as progress changes, so never call it in a tight loop: check a few times, narrating progress to the user in between, and if it is still running after that, say so and let the user come back for the results.`,
+    },
+  });
+  const baseExecute = base.execute;
+  if (!baseExecute) return base;
+
+  return {
+    ...base,
+    execute: async (args, options) => {
+      const deadline = Date.now() + AUDIT_STATUS_WAIT_BUDGET_MS;
+      let result: unknown = await baseExecute(args, options);
+      const initial = auditProgressLine(result);
+      while (
+        auditIsRunning(result) &&
+        auditProgressLine(result) === initial &&
+        Date.now() < deadline
+      ) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, AUDIT_STATUS_POLL_MS),
+        );
+        result = await baseExecute(args, options);
+      }
+      return result;
+    },
+  };
 }
 
 // Free (credit-less) site-reading tools, mirroring the onboarding agent's
@@ -295,42 +369,38 @@ export function buildSamMcpTools(
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
-    // Same rollout gate as the MCP server: GA4 tools are hidden until the
-    // OAuth app clears verification, except for allowlisted users.
-    ...(!GA4_OAUTH_APP_PENDING || isGa4ConnectAvailable(authContext.userEmail)
-      ? {
-          get_google_analytics_organic_landing_pages: adaptObjectTool(
-            getGoogleAnalyticsOrganicLandingPagesTool,
-          ),
-          get_google_analytics_page_performance: adaptObjectTool(
-            getGoogleAnalyticsPagePerformanceTool,
-          ),
-          get_google_analytics_key_events: adaptObjectTool(
-            getGoogleAnalyticsKeyEventsTool,
-          ),
-          get_search_opportunities: adaptObjectTool(getSearchOpportunitiesTool),
-          get_google_analytics_organic_overview: adaptObjectTool(
-            getGoogleAnalyticsOrganicOverviewTool,
-          ),
-          get_google_analytics_traffic_acquisition: adaptObjectTool(
-            getGoogleAnalyticsTrafficAcquisitionTool,
-          ),
-          get_google_analytics_measurement_health: adaptObjectTool(
-            getGoogleAnalyticsMeasurementHealthTool,
-          ),
-          get_google_analytics_ecommerce_performance: adaptObjectTool(
-            getGoogleAnalyticsEcommercePerformanceTool,
-          ),
-          get_google_analytics_site_search: adaptObjectTool(
-            getGoogleAnalyticsSiteSearchTool,
-          ),
-          get_google_analytics_audience_breakdown: adaptObjectTool(
-            getGoogleAnalyticsAudienceBreakdownTool,
-          ),
-        }
-      : {}),
+    // Unconditional like the MCP server's registrations — the GA4 launch gate
+    // was removed in #505.
+    get_google_analytics_organic_landing_pages: adaptObjectTool(
+      getGoogleAnalyticsOrganicLandingPagesTool,
+    ),
+    get_google_analytics_page_performance: adaptObjectTool(
+      getGoogleAnalyticsPagePerformanceTool,
+    ),
+    get_google_analytics_key_events: adaptObjectTool(
+      getGoogleAnalyticsKeyEventsTool,
+    ),
+    get_search_opportunities: adaptObjectTool(getSearchOpportunitiesTool),
+    get_google_analytics_organic_overview: adaptObjectTool(
+      getGoogleAnalyticsOrganicOverviewTool,
+    ),
+    get_google_analytics_traffic_acquisition: adaptObjectTool(
+      getGoogleAnalyticsTrafficAcquisitionTool,
+    ),
+    get_google_analytics_measurement_health: adaptObjectTool(
+      getGoogleAnalyticsMeasurementHealthTool,
+    ),
+    get_google_analytics_ecommerce_performance: adaptObjectTool(
+      getGoogleAnalyticsEcommercePerformanceTool,
+    ),
+    get_google_analytics_site_search: adaptObjectTool(
+      getGoogleAnalyticsSiteSearchTool,
+    ),
+    get_google_analytics_audience_breakdown: adaptObjectTool(
+      getGoogleAnalyticsAudienceBreakdownTool,
+    ),
     run_site_audit: adaptTool(runSiteAuditTool),
-    get_audit_status: adaptTool(getAuditStatusTool),
+    get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
     get_audit_pages: adaptTool(getAuditPagesTool),
   };
