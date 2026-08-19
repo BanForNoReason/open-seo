@@ -1,5 +1,5 @@
 ---
-name: competitor-analysis
+name: openseo-competitor-analysis
 description: "Analyze one competitor's organic footprint, ranking keywords, content themes, backlinks, and gaps."
 ---
 
@@ -9,7 +9,7 @@ description: "Analyze one competitor's organic footprint, ranking keywords, cont
 
 Analyze one competitor deeply enough to decide what to learn from, avoid, counter-position against, or outrank.
 
-Use this for a named competitor. For identifying the market leaders first, use `competitive-landscape`.
+Use this for a named competitor. For identifying the market leaders first, use `openseo-competitive-landscape`.
 
 ## Required inputs
 

@@ -1,5 +1,5 @@
 ---
-name: seo-audit
+name: openseo-audit
 description: "Audit a website and deliver a one-page, plain-language SEO report anyone can act on, centered on a single do-this-week action."
 ---
 
@@ -9,7 +9,7 @@ description: "Audit a website and deliver a one-page, plain-language SEO report 
 
 Audit a domain and produce a one-page HTML report that anyone, including a complete SEO beginner, can read once and act on. The whole report exists to support ONE action the owner can take this week; everything else is supporting detail.
 
-Use this when asked for an SEO audit or review of a domain, especially when the output is a shareable report for a non-expert. For expert-facing analysis of a competitor or market, use `competitor-analysis` or `competitive-landscape` instead.
+Use this when asked for an SEO audit or review of a domain, especially when the output is a shareable report for a non-expert. For expert-facing analysis of a competitor or market, use `openseo-competitor-analysis` or `openseo-competitive-landscape` instead.
 
 ## Required inputs
 
@@ -25,7 +25,7 @@ Use this when asked for an SEO audit or review of a domain, especially when the 
 - `get_domain_overview`: estimated organic traffic and organic keyword count. Skip when the site is clearly dead.
 - `research_keywords`: keyword ideas with volume and difficulty, used to propose a starting focus area. One call with 1-3 seeds taken from what the site is actually about. Skip when the site is down.
 
-Keep total spend modest: one audit, one backlinks overview, at most one domain overview, and at most one keyword-research call. Only the overview and keyword lookups spend credits.
+Keep total spend modest: one audit, one backlinks overview, at most one domain overview, and at most one keyword research call. Only the overview and keyword lookups spend credits.
 
 ## Workflow
 
@@ -39,7 +39,7 @@ Keep total spend modest: one audit, one backlinks overview, at most one domain o
    - Dead domain, live successor site: permanent redirect via hosting support, with the exact sentence to send them.
    - Blocked or noindexed pages: remove the block.
    It must be doable this week by a non-technical person, with copy-paste-ready mechanics included.
-7. When the site is healthy, propose a starting focus area: run one `research_keywords` call seeded from the site's actual topic, then pick one theme and 3 to 5 specific, low-difficulty keywords the site can realistically rank for, each with the page or post to make. This is a starting direction, not a keyword strategy; point the user at the `keyword-research` skill for the full workflow. Skip this step entirely when the site is down — the one thing is all that matters there.
+7. When the site is healthy, propose a starting focus area: run one `research_keywords` call seeded from the site's actual topic, then pick one theme and 3 to 5 specific, low-difficulty keywords the site can realistically rank for, each with the page or post to make. This is a starting direction, not a keyword strategy; point the user at the `openseo-keyword-research` skill for the full workflow. Skip this step entirely when the site is down — the one thing is all that matters there.
 8. Write the report using `template.html` in this skill directory (see Output format).
 9. Review before delivering: run an adversarial pass with a second agent or model if your environment has one, otherwise do a fresh self-review. Give the reviewer the verified facts and have it attack four things: claims beyond the facts, unglossed jargon, anything overwhelming for a beginner, and dramatic language. The reviewer may also flag true facts it was not given; check those against your evidence instead of "fixing" them.
 10. Deliver the report: if your environment can publish or preview HTML (for example as an artifact), do that; otherwise save the HTML file and tell the user to open it in their browser.

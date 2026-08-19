@@ -1,5 +1,5 @@
 ---
-name: competitive-landscape
+name: openseo-competitive-landscape
 description: Map SEO market leaders, winning content themes, keyword coverage, backlinks, and strategic gaps.
 ---
 
@@ -9,7 +9,7 @@ description: Map SEO market leaders, winning content themes, keyword coverage, b
 
 Answer: "Who is winning this SEO market, what content is working for them, and where are the openings?"
 
-Use this when the user wants a market-level view across several competitors. For a deep dive on one domain, use `competitor-analysis`.
+Use this when the user wants a market-level view across several competitors. For a deep dive on one domain, use `openseo-competitor-analysis`.
 
 ## Required inputs
 

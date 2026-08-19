@@ -132,14 +132,14 @@ v1.
 Free: the full strategy, positioning, themes, capped starter keyword list
 (~15–20), and the "do next" list. Gated (execution): rank-tracking the proposed
 keywords, full keyword expansion, content briefs per theme, and the ongoing
-`seo-coach`. Every gated action is a named thing tied to a strategy item the
+`openseo-coach`. Every gated action is a named thing tied to a strategy item the
 user already believes in — stronger pull than "refine further." GSC stays behind
 the gate; we do **not** prompt for it during onboarding (connecting then hitting
 a paywall is exactly the bait-and-switch the UX audit warned against).
 
-## Unify the seo-coach skill
+## Unify the openseo-coach skill
 
-Update the `seo-coach` skill (and `onboarding-checklist`) so the coach and the
+Update the `openseo-coach` skill (and `onboarding-checklist`) so the coach and the
 onboarding agent are one continuous experience: the coach reads Project Context
 via MCP, picks up where onboarding left off ("here's your strategy — let's work
 the backlog"), and can answer both SEO questions and OpenSEO product questions.

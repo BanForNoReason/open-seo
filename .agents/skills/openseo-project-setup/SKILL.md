@@ -1,5 +1,5 @@
 ---
-name: seo-project-setup
+name: openseo-project-setup
 description: Set up a durable local SEO workspace with project context, notes, goals, positioning, preferences, MCP checks, and Search Console data intake.
 ---
 
@@ -98,7 +98,7 @@ Do not run research tools just to test connectivity; `whoami` and `list_projects
 
 GSC is the richest first-party signal: existing impressions, near-ranking terms, cannibalization, and pages that already have search demand.
 
-**Preferred (hosted): connect it natively.** On the project's Integrations page, connect Google Search Console and pull live data with `get_search_console_performance`. Once connected, the agent reads it directly in `keyword-research` and `keyword-clustering` — no manual files to maintain.
+**Preferred (hosted): connect it natively.** On the project's Integrations page, connect Google Search Console and pull live data with `get_search_console_performance`. Once connected, the agent reads it directly in `openseo-keyword-research` and `openseo-keyword-clustering` — no manual files to maintain.
 
 **Fallback (self-hosted, or if the user prefers files):** ask the user to export CSVs from Search Console into the SEO working folder.
 
@@ -134,12 +134,12 @@ Ask for or discover:
 
 After intake, recommend one next OpenSEO workflow:
 
-- `seo-audit`: when the site already exists and the user wants to know what to fix or do first, especially if they are new to SEO
-- `keyword-research`: when the user needs ideas from seed topics
-- `keyword-clustering`: when they have keywords or GSC data to map to pages
-- `competitive-landscape`: when the market is unclear
-- `competitor-analysis`: when they know a competitor to study
-- `link-prospecting`: when they have a linkable asset or target page
+- `openseo-audit`: when the site already exists and the user wants to know what to fix or do first, especially if they are new to SEO
+- `openseo-keyword-research`: when the user needs ideas from seed topics
+- `openseo-keyword-clustering`: when they have keywords or GSC data to map to pages
+- `openseo-competitive-landscape`: when the market is unclear
+- `openseo-competitor-analysis`: when they know a competitor to study
+- `openseo-link-prospecting`: when they have a linkable asset or target page
 
 ## Output format
 
