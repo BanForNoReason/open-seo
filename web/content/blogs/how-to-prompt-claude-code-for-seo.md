@@ -13,7 +13,7 @@ Your job is to control that expert, and make sure what it does serves your marke
 
 SEO is a deep topic. But working on it in tandem with your agent is much simpler than trying to read up on SEO first. Ask your questions, talk through your ideas, and refine from there.
 
-## What that looks like
+## A 60-second example
 
 > **You:** My site gets decent traffic but almost no signups. What should I look at?
 >
@@ -25,7 +25,7 @@ SEO is a deep topic. But working on it in tandem with your agent is much simpler
 
 The first answer is a list of ideas. The second is a decision you can act on.
 
-## Set up once
+## How to set up Claude Code for SEO
 
 Two commands in Claude Code install the OpenSEO MCP server and all nine SEO agent skills:
 
@@ -44,7 +44,7 @@ To acquire this data, someone has to crawl the whole internet and store everythi
 
 OpenSEO is $10 a month with $10 of usage credits included, and signing up is free with $0.50 of trial credits. Asking Claude questions costs nothing beyond your normal Claude usage. You only spend credits when the agent pulls real data, and a keyword lookup runs about five cents. Search Console data never costs credits, because it's your own data.
 
-## Your first prompt
+## Your first SEO prompt
 
 Don't start by studying what the tools do. Ask:
 
@@ -52,7 +52,7 @@ Don't start by studying what the tools do. Ask:
 
 The skills are packaged workflows for things like audits, keyword research, and link prospecting, and Claude will pick the right one and explain why. If it says it doesn't have any, run the two install commands above and ask again.
 
-## How to talk to it
+## SEO prompts for Claude Code
 
 The example prompts below read like speech because we dictate ours. A rambling voice memo carries more context than a carefully typed line, and transcription typos don't matter. [Wispr Flow](https://wisprflow.ai) and [superwhisper](https://superwhisper.com) both do this well, and [Handy](https://handy.computer) and [FluidVoice](https://github.com/altic-dev/FluidVoice) are open source.
 
@@ -74,7 +74,7 @@ The example prompts below read like speech because we dictate ours. A rambling v
 
 **Show, don't describe.** A screenshot of a weird-looking page or a confusing report is a complete prompt. And if it's heading the wrong direction mid-task, interrupt it. You won't offend it.
 
-## When the answer feels wrong
+## How to get clarity from Claude
 
 You can't really mess this up:
 
@@ -84,7 +84,7 @@ You can't really mess this up:
 
 You are not being graded on your prompts. A dumb question costs you a few seconds, and so does asking the same one twice.
 
-## Where to start
+## How to get started with SEO in Claude Code
 
 Dictate a paragraph about your business: what you sell, who buys it, and what you want from search. Then ask:
 
@@ -93,3 +93,34 @@ Dictate a paragraph about your business: what you sell, who buys it, and what yo
 Ten minutes later you'll have a short, prioritized list and the reasoning behind it. Push back on it, then refine from there.
 
 That works with or without OpenSEO connected. With it, the answers come with real numbers attached.
+
+
+## FAQ
+
+### Do AI SEO agents actually work?
+
+For the legwork, yes: keyword research, audits, rank tracking, and competitor analysis are data problems, and an agent with real data handles them well. What doesn't work is autopilot. Google's spam policies name scaled AI content generation directly, and no agent can hand you a strategy. The judgment stays with you; that's the whole setup this guide describes.
+
+### Will AI replace SEO?
+
+No, but it's changing where the answers show up. More searches end in an AI-written answer instead of ten blue links, and those answers cite sources. The work of being the source worth citing is still SEO: crawlable pages, content that answers the question, and a reputation other sites vouch for.
+
+### Is SEO dead?
+
+Search demand didn't die; it's spreading across Google, AI Overviews, and chat assistants. What died is the version of SEO where you stuff keywords and wait. The questions that decide whether you get found, and now whether you get cited, are the same ones your agent can help you answer.
+
+### Can I do SEO myself?
+
+Yes, and that's the point of working this way. The parts that used to require an expensive expert, reading the data, spotting the priority, knowing what to check next, are exactly what the agent is good at. You bring the knowledge of your own business, which no agency has anyway. Once the business takes off, hiring an SEO expert can be worth it, but you don't need one to get started.
+
+### How much does SEO cost?
+
+Your time, plus data. The data runs $10 a month with [OpenSEO](/pricing), $100 and up with the big suites, or a $50 minimum deposit with a raw data provider if you [self-host](/open-source-seo). Content costs whatever your time is worth. You don't need an agency to start.
+
+### How long does SEO take?
+
+Months, not days. Google has to recrawl your pages, re-rank them, and build trust, so expect the first movement in weeks and real results in three to six months. That's why the method here leans on weekly rank tracking and your own Search Console data: you want evidence it's working long before the traffic shows up.
+
+### Is SEO worth it for a small business?
+
+It's worth it if your customers search for what you sell. Spend ten minutes checking before you invest: look up the keywords you'd want to rank for, and see whether there's volume and who currently holds the results. If nobody searches for your category, put the effort into another channel and revisit later.
