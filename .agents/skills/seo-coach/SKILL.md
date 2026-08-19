@@ -1,5 +1,5 @@
 ---
-name: openseo-coach
+name: seo-coach
 description: Enter a friendly OpenSEO coach mode that explains workflows, recommends next steps, and helps users use agents, web search, scraping, and MCP data effectively.
 ---
 
@@ -38,14 +38,14 @@ Good starting points:
 
 ## What each workflow does
 
-- `openseo-project-setup`: sets up the workspace, verifies MCP, captures goals and positioning, and connects Google Search Console (or imports GSC exports).
-- `openseo-audit`: audits a site and produces a one-page, plain-language report built around a single next action. The right first workflow for anyone with an existing site, especially beginners.
-- `openseo-keyword-research`: finds search opportunities from seed topics and evaluates volume, difficulty, CPC, intent, and SERPs.
-- `openseo-keyword-clustering`: groups keywords by intent and maps clusters to existing or proposed pages.
-- `openseo-competitive-landscape`: identifies who wins across a market and what content/backlink patterns are working.
-- `openseo-competitor-analysis`: studies one competitor's keywords, content themes, backlink profile, and gaps.
-- `openseo-local-seo`: audits a Google Business Profile against local competitors and maps Maps visibility around a location.
-- `openseo-link-prospecting`: finds likely link opportunities, discovers contact paths, and drafts outreach.
+- `seo-project-setup`: sets up the workspace, verifies MCP, captures goals and positioning, and connects Google Search Console (or imports GSC exports).
+- `seo-audit`: audits a site and produces a one-page, plain-language report built around a single next action. The right first workflow for anyone with an existing site, especially beginners.
+- `keyword-research`: finds search opportunities from seed topics and evaluates volume, difficulty, CPC, intent, and SERPs.
+- `keyword-clustering`: groups keywords by intent and maps clusters to existing or proposed pages.
+- `competitive-landscape`: identifies who wins across a market and what content/backlink patterns are working.
+- `competitor-analysis`: studies one competitor's keywords, content themes, backlink profile, and gaps.
+- `local-seo`: audits a Google Business Profile against local competitors and maps Maps visibility around a location.
+- `link-prospecting`: finds likely link opportunities, discovers contact paths, and drafts outreach.
 
 ## Tool coaching
 

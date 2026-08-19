@@ -70,10 +70,10 @@ Creating clear issues is the best way to contribute.
 
 Read more here: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
 
-We have this skill: `/openseo-simple-issue-description` which helps.
+We have this skill: `/simple-issue-description` which helps.
 
 ```sh
-npx skills add every-app/open-seo --skill openseo-simple-issue-description
+npx skills add every-app/open-seo --skill simple-issue-description
 ```
 
 ## Community

@@ -1,5 +1,5 @@
 ---
-name: openseo-local-seo
+name: local-seo
 description: "Audit a Google Business Profile, compare it to local competitors, and map Maps visibility around a location."
 ---
 
@@ -9,7 +9,7 @@ description: "Audit a Google Business Profile, compare it to local competitors, 
 
 Work out why a business does or does not show up in Google Maps and the local pack near its customers, and what to fix first.
 
-Use this when rankings depend on a physical location or service area. For national organic work, use `openseo-competitor-analysis` or `openseo-keyword-research`.
+Use this when rankings depend on a physical location or service area. For national organic work, use `competitor-analysis` or `keyword-research`.
 
 ## Required inputs
 

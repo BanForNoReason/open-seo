@@ -34,11 +34,11 @@ metadata:
      ln -s ../../.agents/skills/<name> .claude/skills/<name>
      ```
 
-   - **Public product skill** (a customer-facing SEO workflow): no `internal` flag, prefix `<kebab-name>` with `openseo-` (e.g. `openseo-competitor-analysis`) so it's easy to find and doesn't clash with skills from other sources when a user installs skills from multiple repos. Usually no `.claude/skills` symlink (repo agents don't need customer workflows). The `openseo-` prefix applies to the skill directory, its `name:` frontmatter, and the slash command/install docs — **not** the website doc slug: the site is already `openseo.so`, so `web/content/docs/skills/<short-name>.mdx` and its links keep the short, unprefixed slug (e.g. `competitor-analysis.mdx`, linked from a skill's `RunSkillCallout` as `/openseo-competitor-analysis` but cross-referenced from other doc pages as `/docs/skills/competitor-analysis`). Register it everywhere users discover skills:
-     - `web/content/docs/skills/<short-name>.mdx` — docs page (mirror a sibling like `competitor-analysis.mdx`: what it does, when to use it, what you get back, how to get the best result)
+   - **Public product skill** (a customer-facing SEO workflow): no `internal` flag, usually no `.claude/skills` symlink (repo agents don't need customer workflows). Register it everywhere users discover skills:
+     - `web/content/docs/skills/<name>.mdx` — docs page (mirror a sibling like `competitor-analysis.mdx`: what it does, when to use it, what you get back, how to get the best result)
      - `web/content/docs/skills/index.md` — bullet in the right workflow section
      - `web/content/docs/skills/meta.json` — nav entry
-     - `.agents/skills/openseo-coach/SKILL.md` — one line in the "What each workflow does" roster
+     - `.agents/skills/seo-coach/SKILL.md` — one line in the "What each workflow does" roster
      - Optional: `web/src/lib/feature-pages.ts` and `web/content/docs/skills/setup.md` if it deserves marketing/setup placement
 
 3. If the skill references MCP tools, use exact tool names and keep them in sync with `src/server/mcp/server.ts` — the tool names in skills are load-bearing for agents following them.

@@ -14,13 +14,13 @@ const DISCORD_URL = "https://discord.gg/c9uGs3cFXr";
 const SUPPORT_EMAIL = "ben@openseo.so";
 const SAM_GITHUB_URL = "https://github.com/every-app/sam";
 const SKILL_NAMES = [
-  "openseo-project-setup",
-  "openseo-coach",
-  "openseo-keyword-research",
-  "openseo-keyword-clustering",
-  "openseo-competitive-landscape",
-  "openseo-competitor-analysis",
-  "openseo-link-prospecting",
+  "seo-project-setup",
+  "seo-coach",
+  "keyword-research",
+  "keyword-clustering",
+  "competitive-landscape",
+  "competitor-analysis",
+  "link-prospecting",
 ];
 const SKILLS_INSTALL = `npx skills add every-app/open-seo`;
 const ALL_SKILLS_INSTALL = `npx skills add every-app/open-seo --skill '*'`;
@@ -267,7 +267,7 @@ function AiPage() {
             <p className="text-sm text-base-content/70 leading-relaxed">
               Start with{" "}
               <span className="font-mono text-base-content">
-                /openseo-project-setup
+                /seo-project-setup
               </span>
               . It will ask about your project and help configure your
               workspace.

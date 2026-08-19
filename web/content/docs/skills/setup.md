@@ -71,15 +71,13 @@ Each skill page also links to its source `SKILL.md`.
 
 After the skill files are available to your agent, run the matching slash command:
 
-- `/openseo-project-setup`
-- `/openseo-coach`
-- `/openseo-audit`
-- `/openseo-keyword-research`
-- `/openseo-keyword-clustering`
-- `/openseo-competitive-landscape`
-- `/openseo-competitor-analysis`
-- `/openseo-local-seo`
-- `/openseo-link-prospecting`
+- `/seo-project-setup`
+- `/seo-coach`
+- `/keyword-research`
+- `/keyword-clustering`
+- `/competitive-landscape`
+- `/competitor-analysis`
+- `/link-prospecting`
 
 ## Next step
 

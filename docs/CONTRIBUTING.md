@@ -24,25 +24,25 @@ Yup! I just won't merge them right now. But, making a PR can be a good way to im
 
 Videos demoing the feature also help a lot here too since its a sign that the PR wasn't just made by Claude and never tested.
 
-### /openseo-simple-issue-description
+### /simple-issue-description
 
-For ease of review, I would appreciate if you used the `/openseo-simple-issue-description` to refine your issue. I'm hoping that everything being written in the same voice and format will make it easier to understand issues without a lot of back and forth.
+For ease of review, I would appreciate if you used the `/simple-issue-description` to refine your issue. I'm hoping that everything being written in the same voice and format will make it easier to understand issues without a lot of back and forth.
 
 Install it with:
 
 ```sh
-npx skills add every-app/open-seo --skill openseo-simple-issue-description
+npx skills add every-app/open-seo --skill simple-issue-description
 ```
 
 See [Set up OpenSEO Agent Skills](https://openseo.so/docs/skills/setup) for other install options.
 
-Here is what we're aiming for with `/openseo-simple-issue-description`:
+Here is what we're aiming for with `/simple-issue-description`:
 
 - There is sufficient detail in the issue.
   - What is the problem you're facing?
   - What is the full user experience for the feature you're proposing?
 - Succinct i.e. not default Claude output.
-  - I have an `/explain-simply` skill I use all the time which inspired `/openseo-simple-issue-description`
+  - I have an `/explain-simply` skill I use all the time which inspired `/simple-issue-description`
   - I can't understand the default Claude / Codex output at this point.
 
 ### Our Roadmap
