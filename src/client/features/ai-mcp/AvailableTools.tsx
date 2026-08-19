@@ -1,5 +1,3 @@
-import { GA4_OAUTH_APP_PENDING } from "@/shared/ga4";
-
 type McpTool = {
   name: string;
   title: string;
@@ -254,14 +252,10 @@ const toolCategories: ToolCategory[] = [
   },
 ];
 
-const visibleCategories = GA4_OAUTH_APP_PENDING
-  ? toolCategories.filter((cat) => cat.label !== "Google Analytics")
-  : toolCategories;
-
 export function AvailableTools() {
   return (
     <div className="grid gap-x-8 gap-y-8 md:grid-cols-2">
-      {visibleCategories.map((cat) => (
+      {toolCategories.map((cat) => (
         <div key={cat.label}>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
             {cat.label}
