@@ -32,6 +32,8 @@ const MCP_CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 } as const;
 
+const SURFMIND_CHROME_EXTENSION_HOSTNAME = "pghallcbnfabbgfijhbcldaapmgidnaa";
+
 function withMcpCors(response: Response) {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(MCP_CORS_HEADERS)) {
@@ -158,6 +160,7 @@ export async function handleAuthenticatedOpenSeoMcpRequest(
 
   return createRequestHandler(result.data, [
     new URL(getHostedBaseUrl()).hostname,
+    SURFMIND_CHROME_EXTENSION_HOSTNAME,
   ])(request, env, ctx);
 }
 

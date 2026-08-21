@@ -9,13 +9,18 @@ const ctx: ExecutionContext = {
   props: {},
 };
 
-function request(method: string, body?: unknown) {
+function request(
+  method: string,
+  body?: unknown,
+  headers?: Record<string, string>,
+) {
   return new Request("https://open-seo.test/mcp", {
     method,
     headers: {
       Host: "open-seo.test",
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
+      ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -96,5 +101,39 @@ describe("Agents SDK v2 MCP transport", () => {
     expect(responseText).toContain('\\"clientId\\":\\"client-1\\"');
     expect(responseText).toContain('\\"scopes\\":[\\"mcp\\"]');
     expect(responseText).toContain('\\"organizationId\\":\\"org-1\\"');
+  });
+
+  it("accepts the SurfMind extension origin and rejects other browser origins", async () => {
+    const handler = createMcpHandler(
+      () => new McpServer({ name: "test", version: "1.0.0" }),
+      {
+        route: "/mcp",
+        allowedOriginHostnames: [
+          "open-seo.test",
+          "pghallcbnfabbgfijhbcldaapmgidnaa",
+        ],
+      },
+    );
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+    };
+
+    const surfMindResponse = await handler(
+      request("POST", body, {
+        Origin: "chrome-extension://pghallcbnfabbgfijhbcldaapmgidnaa",
+      }),
+      {},
+      ctx,
+    );
+    const unrelatedOriginResponse = await handler(
+      request("POST", body, { Origin: "https://evil.com" }),
+      {},
+      ctx,
+    );
+
+    expect(surfMindResponse.status).toBe(200);
+    expect(unrelatedOriginResponse.status).toBe(403);
   });
 });
