@@ -1,7 +1,35 @@
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { McpServer } from "@modelcontextprotocol/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { createWorkersOAuthMcpProps } from "@/server/mcp/context";
+import { handleAuthenticatedOpenSeoMcpRequest } from "@/server/mcp/transport";
+
+vi.mock("@/lib/auth", () => ({
+  getHostedBaseUrl: () => "https://open-seo.test",
+}));
+
+vi.mock("@/middleware/ensure-user/cloudflareAccess", () => ({
+  resolveCloudflareAccessContext: vi.fn(),
+}));
+
+vi.mock("@/middleware/ensure-user/delegated", () => ({
+  resolveLocalNoAuthContext: vi.fn(),
+}));
+
+vi.mock("@/server/mcp/server", async () => {
+  const { McpServer: ActualMcpServer } =
+    await import("@modelcontextprotocol/server");
+  return {
+    createOpenSeoMcpServer: () => {
+      const server = new ActualMcpServer({ name: "test", version: "1.0.0" });
+      server.registerTool("ping", {}, () => ({
+        content: [{ type: "text" as const, text: "pong" }],
+      }));
+      return server;
+    },
+  };
+});
 
 const ctx: ExecutionContext = {
   waitUntil() {},
@@ -135,5 +163,51 @@ describe("Agents SDK v2 MCP transport", () => {
 
     expect(surfMindResponse.status).toBe(200);
     expect(unrelatedOriginResponse.status).toBe(403);
+  });
+
+  it("enforces exact hosted origins around the real SDK handler", async () => {
+    const props = createWorkersOAuthMcpProps({
+      userId: "user-1",
+      userEmail: "user@example.com",
+      organizationId: "org-1",
+      baseUrl: "https://open-seo.test",
+      clientId: "client-1",
+      scopes: ["mcp"],
+    });
+    const modernToolsList = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    };
+    const call = (origin?: string) =>
+      handleAuthenticatedOpenSeoMcpRequest(
+        request("POST", modernToolsList, {
+          "Mcp-Method": "tools/list",
+          ...(origin ? { Origin: origin } : {}),
+        }),
+        props,
+        {},
+        { ...ctx, props },
+      );
+
+    await expect(
+      call("chrome-extension://pghallcbnfabbgfijhbcldaapmgidnaa"),
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(call("https://open-seo.test")).resolves.toMatchObject({
+      status: 200,
+    });
+    await expect(call()).resolves.toMatchObject({ status: 200 });
+    await expect(
+      call("https://pghallcbnfabbgfijhbcldaapmgidnaa"),
+    ).resolves.toMatchObject({ status: 403 });
+    await expect(
+      call("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ).resolves.toMatchObject({ status: 403 });
   });
 });
