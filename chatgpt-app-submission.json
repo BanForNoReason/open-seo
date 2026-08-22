@@ -1,10 +1,10 @@
 {
-  "$schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
   "schema_version": 1,
   "app_info": {
     "display_name": "OpenSEO",
     "subtitle": "SEO made simple.",
-    "description": "Without quality data, AI gives generic advice.\n\nOpenSEO starts at $10/month instead of a $100+ / month like other legacy tools.\n\nIt's approachable for entrepreneurs doing SEO for the first time, but powerful to grow with you as you learn.\n\nYou can do keyword research, competitor research, backlinks, site audits and much more.\n\nConnect with popular integrations like Google Search Console & Analytics.",
+    "description": "Without quality data, AI gives generic advice.\n\nIt's approachable for entrepreneurs doing SEO for the first time, but powerful to grow with you as you learn.\n\nYou can do keyword research, competitor research, backlinks, site audits and much more.\n\nConnect with popular integrations like Google Search Console & Analytics.",
     "category": "BUSINESS"
   },
   "tools": {
