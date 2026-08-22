@@ -23,6 +23,7 @@ import { Route as BlogsSplatRouteImport } from './routes/blogs/$'
 import { Route as ApiSubscribeRouteImport } from './routes/api/subscribe'
 import { Route as ApiEventRouteImport } from './routes/api/event'
 import { Route as ApiBacklinkCheckRouteImport } from './routes/api/backlink-check'
+import { Route as MarketingSupportRouteImport } from './routes/_marketing/support'
 import { Route as MarketingRoadmapRouteImport } from './routes/_marketing/roadmap'
 import { Route as MarketingPricingRouteImport } from './routes/_marketing/pricing'
 import { Route as MarketingOpenSourceSeoRouteImport } from './routes/_marketing/open-source-seo'
@@ -123,6 +124,11 @@ const ApiBacklinkCheckRoute = ApiBacklinkCheckRouteImport.update({
   id: '/api/backlink-check',
   path: '/api/backlink-check',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MarketingSupportRoute = MarketingSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => MarketingRoute,
 } as any)
 const MarketingRoadmapRoute = MarketingRoadmapRouteImport.update({
   id: '/roadmap',
@@ -318,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/roadmap': typeof MarketingRoadmapRoute
+  '/support': typeof MarketingSupportRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/event': typeof ApiEventRoute
   '/api/subscribe': typeof ApiSubscribeRoute
@@ -363,6 +370,7 @@ export interface FileRoutesByTo {
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/roadmap': typeof MarketingRoadmapRoute
+  '/support': typeof MarketingSupportRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/event': typeof ApiEventRoute
   '/api/subscribe': typeof ApiSubscribeRoute
@@ -411,6 +419,7 @@ export interface FileRoutesById {
   '/_marketing/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/_marketing/pricing': typeof MarketingPricingRoute
   '/_marketing/roadmap': typeof MarketingRoadmapRoute
+  '/_marketing/support': typeof MarketingSupportRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/event': typeof ApiEventRoute
   '/api/subscribe': typeof ApiSubscribeRoute
@@ -460,6 +469,7 @@ export interface FileRouteTypes {
     | '/open-source-seo'
     | '/pricing'
     | '/roadmap'
+    | '/support'
     | '/api/backlink-check'
     | '/api/event'
     | '/api/subscribe'
@@ -505,6 +515,7 @@ export interface FileRouteTypes {
     | '/open-source-seo'
     | '/pricing'
     | '/roadmap'
+    | '/support'
     | '/api/backlink-check'
     | '/api/event'
     | '/api/subscribe'
@@ -552,6 +563,7 @@ export interface FileRouteTypes {
     | '/_marketing/open-source-seo'
     | '/_marketing/pricing'
     | '/_marketing/roadmap'
+    | '/_marketing/support'
     | '/api/backlink-check'
     | '/api/event'
     | '/api/subscribe'
@@ -706,6 +718,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/backlink-check'
       preLoaderRoute: typeof ApiBacklinkCheckRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_marketing/support': {
+      id: '/_marketing/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof MarketingSupportRouteImport
+      parentRoute: typeof MarketingRoute
     }
     '/_marketing/roadmap': {
       id: '/_marketing/roadmap'
@@ -933,6 +952,7 @@ interface MarketingRouteChildren {
   MarketingOpenSourceSeoRoute: typeof MarketingOpenSourceSeoRoute
   MarketingPricingRoute: typeof MarketingPricingRoute
   MarketingRoadmapRoute: typeof MarketingRoadmapRoute
+  MarketingSupportRoute: typeof MarketingSupportRoute
   MarketingIndexRoute: typeof MarketingIndexRoute
   MarketingFeaturesAiBrandVisibilityRoute: typeof MarketingFeaturesAiBrandVisibilityRoute
   MarketingFeaturesAiSearchPromptsRoute: typeof MarketingFeaturesAiSearchPromptsRoute
@@ -968,6 +988,7 @@ const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingOpenSourceSeoRoute: MarketingOpenSourceSeoRoute,
   MarketingPricingRoute: MarketingPricingRoute,
   MarketingRoadmapRoute: MarketingRoadmapRoute,
+  MarketingSupportRoute: MarketingSupportRoute,
   MarketingIndexRoute: MarketingIndexRoute,
   MarketingFeaturesAiBrandVisibilityRoute:
     MarketingFeaturesAiBrandVisibilityRoute,
