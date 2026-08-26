@@ -37,6 +37,11 @@ const NON_REPORTABLE_ERROR_CODES = new Set<ErrorCode>([
   "AUDIT_CAPACITY_REACHED",
   "AUDIT_PAGE_LIMIT_EXCEEDED",
   "AUDIT_ALREADY_RUNNING",
+  // An external provider (DataForSEO) failing on its own side. Nothing in the
+  // app to fix, and it drowned real exceptions. Note the error handlers only
+  // log what they capture, so every throw site logs its own line to keep the
+  // failure rate visible in Workers Observability.
+  "UPSTREAM_UNAVAILABLE",
 ]);
 
 export function isErrorCode(value: string): value is ErrorCode {

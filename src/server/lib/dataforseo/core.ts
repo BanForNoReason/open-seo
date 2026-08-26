@@ -110,6 +110,14 @@ function createAuthenticatedFetch(
         },
       );
       error.name = "DataForSEOHttpError";
+      // UPSTREAM_UNAVAILABLE is non-reportable, and the error handlers only log
+      // what they capture, so log here to keep the provider's failure rate
+      // visible in Workers Observability.
+      if (code === "UPSTREAM_UNAVAILABLE")
+        console.error("dataforseo.upstream-http-failed", {
+          path,
+          status: response.status,
+        });
       throw error;
     }
   };

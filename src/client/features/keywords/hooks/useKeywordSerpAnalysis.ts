@@ -22,6 +22,9 @@ export function useKeywordSerpAnalysis(
         },
       }),
     enabled: !!serpKeyword,
+    // Every attempt is a fresh billed DataForSEO task, so a failure must not be
+    // retried automatically — the user re-runs the search instead.
+    retry: false,
   });
 
   const serpResults = serpQuery.data?.items ?? [];
