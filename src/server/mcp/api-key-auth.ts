@@ -95,6 +95,26 @@ export async function handleMcpApiKeyRequest(
     }
 
     const userId = result.key.referenceId;
+
+    // Per-user request throttle. The binding is declared in alchemy.run.ts
+    // (hosted prod only); local dev and self-host run without it and skip
+    // limiting, which is fine single-user. This replaces the better-auth
+    // plugin limiter, whose broken idle-gap window hard-blocked active MCP
+    // clients (see lib/auth-api-key.ts). Cloudflare's counter is per-colo
+    // best-effort, which is all this needs to be: credits bound spend, this
+    // bounds runaway request volume.
+    const rateLimit = (env as { MCP_RATE_LIMIT?: RateLimit }).MCP_RATE_LIMIT;
+    if (rateLimit) {
+      const { success } = await rateLimit.limit({ key: userId });
+      if (!success) {
+        return apiKeyErrorResponse({
+          code: "RATE_LIMITED",
+          message: "Rate limit exceeded: 5000 requests per minute",
+          details: { tryAgainIn: 60_000 },
+        });
+      }
+    }
+
     const user = await AuthRepository.getHostedUser(userId);
     if (!user?.email) return apiKeyErrorResponse(null);
 

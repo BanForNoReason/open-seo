@@ -468,6 +468,15 @@ export default Alchemy.Stack(
         // name).
         AUDIT_ENGINE: auditWorker,
 
+        // Per-user throttle for /mcp API-key auth (see
+        // src/server/mcp/api-key-auth.ts). Only this stack declares the
+        // binding — the wrangler.jsonc surfaces (local dev, Docker
+        // self-host) skip limiting when it's absent.
+        MCP_RATE_LIMIT: Cloudflare.RateLimit("MCP_RATE_LIMIT", {
+          namespaceId: 1001,
+          simple: { limit: 5000, period: 60 },
+        }),
+
         // Durable Objects (the chat agents; the audit scratchpad lives
         // privately in the open-seo-audit worker). Alchemy backs new DO
         // classes with SQLite storage; wrangler.jsonc's `migrations` only

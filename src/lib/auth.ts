@@ -68,6 +68,16 @@ function createAuth() {
   const auth = betterAuth({
     baseURL: baseUrl,
     secret: getHostedSecret(),
+    // The api-key plugin logs every verification failure at error level — a
+    // stale key or a throttled caller included. The /mcp handler already logs
+    // the response it returns at the right level (debug for 401, warn for 429),
+    // so drop the duplicate.
+    logger: {
+      log: (level, message, ...args) => {
+        if (message.startsWith("Failed to validate API key")) return;
+        console[level](`[better-auth] ${message}`, ...args);
+      },
+    },
     ...baseAuthConfig,
     emailAndPassword: {
       ...baseAuthConfig.emailAndPassword,

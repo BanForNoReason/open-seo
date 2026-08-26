@@ -146,25 +146,23 @@ describe("handleMcpApiKeyRequest", () => {
     expect(mocks.handleAuthenticatedOpenSeoMcpRequest).not.toHaveBeenCalled();
   });
 
-  it("returns 429 with Retry-After when Better Auth rate-limits the key", async () => {
+  it("returns 429 with Retry-After when the MCP_RATE_LIMIT binding denies", async () => {
     mocks.verifyApiKey.mockResolvedValue({
-      valid: false,
-      error: {
-        code: "RATE_LIMITED",
-        message: "Rate limit exceeded",
-        details: { tryAgainIn: 30500 },
-      },
-      key: null,
+      valid: true,
+      error: null,
+      key: { referenceId: "user-1" },
     });
+    const limit = vi.fn().mockResolvedValue({ success: false });
 
     const response = await handleMcpApiKeyRequest(
       request({ "x-api-key": "oseo_limited" }),
-      env,
+      { MCP_RATE_LIMIT: { limit } },
       ctx,
     );
 
+    expect(limit).toHaveBeenCalledWith({ key: "user-1" });
     expect(response?.status).toBe(429);
-    expect(response?.headers.get("Retry-After")).toBe("31");
+    expect(response?.headers.get("Retry-After")).toBe("60");
     await expect(response?.json()).resolves.toMatchObject({
       error: "rate_limited",
     });
