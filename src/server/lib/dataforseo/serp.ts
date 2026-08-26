@@ -92,7 +92,9 @@ export async function fetchLiveSerp(input: {
       },
     ],
   );
-  const task = assertOk(response);
+  // DataForSEO uses a task error for a valid empty SERP. Keep the charged
+  // response in the normal billing path and return an empty item list.
+  const task = assertOk(response, { treatNoResultsAsEmpty: true });
   return {
     data: parseTaskItems(
       "google-organic-live-advanced",
