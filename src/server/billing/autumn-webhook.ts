@@ -62,10 +62,16 @@ export async function handleAutumnWebhookRequest(request: Request) {
       console.error("Autumn billing.updated sync failed", customerId, error, {
         cause: error instanceof Error ? error.cause : undefined,
       });
-      await captureServerError(error, {
-        source: "autumn_webhook",
-        customer_id: customerId,
-      });
+      // Webhooks carry no user; the Autumn customer id is the organization id,
+      // which at least makes "users affected" count organizations instead of events.
+      await captureServerError(
+        error,
+        {
+          source: "autumn_webhook",
+          customer_id: customerId,
+        },
+        customerId,
+      );
       return json({ error: "Webhook processing failed" }, 500);
     }
 

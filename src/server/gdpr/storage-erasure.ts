@@ -303,6 +303,8 @@ export async function handleGdprStorageErasure(
     // Raw fetch handlers run outside the server-function middleware, so
     // nothing else reports failures here.
     console.error("gdpr.storage-erasure failed:", error);
+    // Deliberately anonymous: this request erases the user, so keying the
+    // exception to their distinct id would recreate the person profile.
     await captureServerError(error, { source: "gdpr_storage_erasure" });
     return Response.json({ error: "Erasure failed" }, { status: 500 });
   }
