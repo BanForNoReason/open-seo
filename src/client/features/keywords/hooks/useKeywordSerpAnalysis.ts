@@ -56,9 +56,6 @@ export function useKeywordSerpAnalysis(
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
     enabled: !!serpKeyword,
-    // Every attempt is a fresh billed DataForSEO task, so a failure must not be
-    // retried automatically — the user re-runs the search instead.
-    retry: false,
   });
 
   const { refetch: refetchSerp } = serpQuery;
