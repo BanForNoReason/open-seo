@@ -18,7 +18,9 @@ import {
   getHostedTurnstileSecretKey,
   hasHostedTurnstileConfig,
 } from "@/lib/auth-turnstile";
-import { getOrCreateDefaultHostedOrganization } from "@/server/auth/default-hosted-organization";
+import { resolveSignInHostedOrganization } from "@/server/auth/default-hosted-organization";
+import { onInvitationAccepted } from "@/server/auth/invited-member";
+import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
 import { captureDubReferralSignup } from "@/server/referrals/dub";
 import {
   sendHostedPasswordResetEmail,
@@ -45,7 +47,72 @@ function createAuth() {
     ? getHostedBaseUrl()
     : "http://localhost";
   const bypassEmail = Reflect.get(env, "BYPASS_EMAIL_VERIFICATION") === "true";
-  const baseAuthConfig = createBaseAuthConfig();
+  const baseAuthConfig = createBaseAuthConfig(
+    isHostedAuthMode(env.AUTH_MODE)
+      ? {
+          organization: {
+            // No sendInvitationEmail here on purpose: better-auth swallows a
+            // throw from that callback, so a failed send would still read as
+            // "sent" in the UI. The invite email is sent (and rate limited)
+            // by the sendTeamInvitation server function instead, which fails
+            // the call visibly. Side effect worth knowing: hitting the raw
+            // /api/auth/organization/invite-member endpoint creates a pending
+            // invitation but emails nobody.
+            organizationHooks: {
+              // The invite UI only offers "admin", but the endpoint accepts
+              // any role string; enforce server-side. This also keeps an
+              // owner from minting a second owner and leaving — the path
+              // that would re-mint a fresh org + free-plan grant at next
+              // sign-in.
+              beforeCreateInvitation: async ({ invitation }) => {
+                if (invitation.role !== "admin") {
+                  throw new APIError("BAD_REQUEST", {
+                    message: "Teammates can only be invited as admins.",
+                  });
+                }
+              },
+              beforeAcceptInvitation: async ({ invitation, user }) => {
+                const existing = await AuthRepository.getMembership(
+                  user.id,
+                  invitation.organizationId,
+                );
+                if (existing) {
+                  throw new APIError("BAD_REQUEST", {
+                    message: "You are already a member of this organization.",
+                  });
+                }
+              },
+              // The invite flow only ever mints "admin", but the raw
+              // update-member-role endpoint accepts any role string and the
+              // plugin lets an owner grant owner to another member. Owners
+              // control billing, so a second owner is a billing-escalation
+              // path (and, if the first owner then leaves, a fresh-org /
+              // free-grant loop at next sign-in). Ownership transfers stay a
+              // support action — reject owner here.
+              beforeUpdateMemberRole: async ({ newRole }) => {
+                if (
+                  newRole
+                    .split(",")
+                    .map((r) => r.trim())
+                    .includes("owner")
+                ) {
+                  throw new APIError("BAD_REQUEST", {
+                    message:
+                      "The owner role can't be granted from here. Contact support to transfer ownership.",
+                  });
+                }
+              },
+              afterAcceptInvitation: async ({ member: acceptedMember }) => {
+                await onInvitationAccepted({
+                  userId: acceptedMember.userId,
+                  organizationId: acceptedMember.organizationId,
+                });
+              },
+            },
+          },
+        }
+      : undefined,
+  );
 
   // Turnstile captcha on signup — hosted only. Enforcement is driven by the
   // server-side secret alone so a client build/runtime site-key mismatch cannot
@@ -169,9 +236,15 @@ function createAuth() {
       session: {
         create: {
           before: async (session) => {
-            // Inject Better Auth's createOrganization here so the helper can
-            // stay reusable without importing auth.ts and creating a cycle.
-            const organizationId = await getOrCreateDefaultHostedOrganization(
+            // Runs on every sign-in (each sign-in mints a session row).
+            // Resolution order: last-active org while still a member → most
+            // recently joined org → newly created default organization —
+            // except that a membership-less user with a pending invitation
+            // gets no organization minted (null active org) so accepting the invite
+            // leaves them in exactly the inviter's org. Inject Better Auth's
+            // createOrganization so the helper can stay reusable without
+            // importing auth.ts and creating a cycle.
+            const resolved = await resolveSignInHostedOrganization(
               session.userId,
               (body) => auth.api.createOrganization({ body }),
             );
@@ -179,7 +252,7 @@ function createAuth() {
             return {
               data: {
                 ...session,
-                activeOrganizationId: organizationId,
+                activeOrganizationId: resolved?.organizationId ?? null,
               },
             };
           },

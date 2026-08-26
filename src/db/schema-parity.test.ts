@@ -264,6 +264,8 @@ const REQUIRED_BETTER_AUTH_INDEXES: {
   { table: "organization", columns: ["slug"], unique: true },
   { table: "member", columns: ["organization_id"], unique: false },
   { table: "member", columns: ["user_id"], unique: false },
+  // Backstop for duplicate memberships (also guarded by beforeAcceptInvitation).
+  { table: "member", columns: ["organization_id", "user_id"], unique: true },
   { table: "invitation", columns: ["organization_id"], unique: false },
   { table: "invitation", columns: ["email"], unique: false },
 ];

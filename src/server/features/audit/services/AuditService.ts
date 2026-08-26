@@ -94,8 +94,11 @@ async function startAudit(input: {
     // pass the free tier's running-audits gate. Post-insert, each request sees
     // at least its own row, so racers can't all slip under the limit; the
     // losers roll back via the catch below. Racers at the boundary may all
-    // abort — the user just retries.
-    const usage = await AuditRepository.getAuditUsageForUser(input.actorUserId);
+    // abort — the user just retries. Usage counts per ORGANIZATION, not per
+    // user: the free ceiling is the org's, so N members don't multiply it.
+    const usage = await AuditRepository.getAuditUsageForOrganization(
+      input.billingCustomer.organizationId,
+    );
     if (usage.runningCount > limits.maxRunningAudits) {
       throw new AppError("AUDIT_ALREADY_RUNNING");
     }

@@ -12,6 +12,7 @@ import {
   createSelfHostedGoogleAuthorizationUrl,
   GA4_INTEGRATION,
 } from "@/server/features/google/selfHostedOAuth";
+import { requireOrgPermission } from "@/server/auth/org-gate";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
@@ -162,6 +163,7 @@ export const setGa4Property = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(setPropertySchema)
   .handler(async ({ data, context }) => {
+    requireOrgPermission(context, { integration: ["manage"] });
     const connection = await Ga4Service.setProperty({
       projectId: context.projectId,
       organizationId: context.organizationId,
@@ -188,6 +190,7 @@ export const disconnectGa4 = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
+    requireOrgPermission(context, { integration: ["manage"] });
     await Ga4Service.disconnect({
       projectId: context.projectId,
       userId: context.userId,
