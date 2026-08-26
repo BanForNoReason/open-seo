@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { identity, sortBy } from "remeda";
 import { describe, expect, it, vi } from "vitest";
 import { objectSchema } from "@/server/mcp/output-schemas";
 
@@ -140,7 +141,7 @@ function toolsReturningMetaOnly(): string[] {
       if (owner) names.add(owner.exportName);
     }
   }
-  return [...names].toSorted();
+  return sortBy([...names], identity());
 }
 
 /**
