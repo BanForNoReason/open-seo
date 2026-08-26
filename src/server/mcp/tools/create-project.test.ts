@@ -75,7 +75,23 @@ describe("create_project MCP tool", () => {
         { name: "Bad market", languageCode: "en" },
         toolContext,
       ),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(mocks.createProject).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported location as a readable validation error", async () => {
+    const call = () =>
+      createProjectTool.handler(
+        { name: "Bad location", locationCode: 999999 },
+        toolContext,
+      );
+
+    await expect(call()).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    // The message must name the offending field so the calling agent can
+    // retry with a supported code, not just repeat the bare error code.
+    await expect(call()).rejects.toThrow(
+      "Unsupported DataForSEO location code",
+    );
     expect(mocks.createProject).not.toHaveBeenCalled();
   });
 });

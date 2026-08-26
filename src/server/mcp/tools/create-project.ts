@@ -1,4 +1,5 @@
 import { ProjectService } from "@/server/features/projects/services/ProjectService";
+import { AppError } from "@/server/lib/errors";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { type ToolContext } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
@@ -65,9 +66,17 @@ export const createProjectTool = {
   handler: async (args: Args, context: ToolContext) => {
     const { baseUrl, ...auth } = context.auth;
     // Reuse the app's create schema so the market pair rule (a languageCode
-    // requires a locationCode) is enforced identically to the dashboard, and
-    // the domain is normalized the same way.
-    const input = createProjectSchema.parse(args);
+    // requires a locationCode) and domain normalization match the dashboard.
+    // A rejection is bad caller input, not a fault: VALIDATION_ERROR keeps it
+    // out of error reporting while still naming the bad field.
+    const parsedInput = createProjectSchema.safeParse(args);
+    if (!parsedInput.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        z.prettifyError(parsedInput.error),
+      );
+    }
+    const input = parsedInput.data;
     const project = await ProjectService.createProject(
       auth.organizationId,
       input,
