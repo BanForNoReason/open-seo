@@ -128,6 +128,12 @@ function createRequestHandler(
     route: MCP_ROUTE,
     allowedOriginHostnames,
     legacy: "reject",
+    // MCP serving is strictly stateless: no notification is ever published,
+    // so refuse subscriptions/listen outright (in-band -32603 before the
+    // ack). The SSE streams it would otherwise hold open pin isolates for
+    // hours and turn every isolate death into a burst of exceededMemory
+    // request outcomes (EVE-95).
+    maxSubscriptions: 0,
   });
 
   return async (request: Request, env: unknown, ctx: ExecutionContext) => {
