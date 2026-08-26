@@ -40,6 +40,13 @@ function isIgnorableException(
     if (value.includes("Object Not Found Matching Id")) return true;
     if (value === "Script error.") return true;
     if (value.includes("signal is aborted without reason")) return true;
+    // ResizeObserver's loop warning is benign by spec (the browser defers
+    // delivery to the next frame) but surfaces as an error. Caveat: this also
+    // mutes a real ResizeObserver->setState feedback loop, if we ship one.
+    if (value.includes("ResizeObserver loop")) return true;
+    // The PostHog SDK's own network timeouts — capturing them just makes error
+    // tracking report on itself.
+    if (value.includes("PostHog request timed out")) return true;
     if (value === "CancelledError") return true;
     const frames = entry?.stacktrace?.frames;
     return (
