@@ -76,7 +76,15 @@ export async function fetchLighthouseResult(
     };
   } catch (error) {
     const failed = error instanceof Error ? error : new Error(String(error));
-    console.error(`Lighthouse failed for ${url}:`, failed.message);
+    // Lighthouse runtime errors (ERRORED_DOCUMENT_REQUEST, NOT_HTML, NO_FCP) mean the
+    // tenant's page didn't load for the provider's Chrome. The failure is already
+    // surfaced on the audit row, so there is nothing for us to act on.
+    const log = failed.message.includes(
+      "Lighthouse encountered an error with the following code",
+    )
+      ? console.warn
+      : console.error;
+    log(`Lighthouse failed for ${url} (${strategy}): ${failed.message}`);
     return failedLighthouseFetch(url, pageId, strategy, failed.message);
   }
 }
