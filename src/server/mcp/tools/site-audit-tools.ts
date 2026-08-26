@@ -1,3 +1,4 @@
+import { sort } from "remeda";
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { AuditService } from "@/server/features/audit/services/AuditService";
@@ -251,7 +252,8 @@ export const getAuditIssuesTool = {
       issueType: args.issueType,
     });
     // Severity-first so truncation drops info rows, never critical ones.
-    const rows = unsorted.toSorted(
+    const rows = sort(
+      unsorted,
       (a, b) =>
         ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
         a.issueType.localeCompare(b.issueType),
@@ -261,8 +263,8 @@ export const getAuditIssuesTool = {
     for (const row of rows) {
       counts.set(row.issueType, (counts.get(row.issueType) ?? 0) + 1);
     }
-    const summary = Array.from(counts.entries())
-      .map(([issueType, count]) => {
+    const summary = sort(
+      Array.from(counts.entries()).map(([issueType, count]) => {
         const descriptor = getIssueDescriptor(issueType);
         return {
           issueType,
@@ -270,12 +272,11 @@ export const getAuditIssuesTool = {
           severity: descriptor?.severity ?? "info",
           count,
         };
-      })
-      .toSorted(
-        (a, b) =>
-          ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
-          b.count - a.count,
-      );
+      }),
+      (a, b) =>
+        ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
+        b.count - a.count,
+    );
 
     const limit = args.limit ?? 200;
     const issues = rows.slice(0, limit).map((row) => {

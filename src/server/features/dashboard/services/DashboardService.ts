@@ -1,3 +1,4 @@
+import { sort } from "remeda";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { ActivationRepository } from "@/server/features/activation/repositories/ActivationRepository";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
@@ -169,17 +170,15 @@ async function getAuditSummary(
   const typeRows = await getIssueTypePageCountsForAudit(audit.id);
 
   const severityRank = { critical: 0, warning: 1, info: 2 };
-  const sorted = typeRows
-    .map((row) => ({
+  const sorted = sort(
+    typeRows.map((row) => ({
       issueType: row.issueType,
       severity: row.severity,
       count: row.pages,
-    }))
-    .toSorted(
-      (a, b) =>
-        severityRank[a.severity] - severityRank[b.severity] ||
-        b.count - a.count,
-    );
+    })),
+    (a, b) =>
+      severityRank[a.severity] - severityRank[b.severity] || b.count - a.count,
+  );
 
   return {
     status: audit.status,

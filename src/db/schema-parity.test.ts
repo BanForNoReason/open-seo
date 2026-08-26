@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
+import { sort } from "remeda";
 import { describe, expect, it } from "vitest";
 import * as sqliteApp from "./app.schema";
 import * as sqliteProjectContext from "./project-context.schema";
@@ -32,7 +33,7 @@ import * as pgTelemetry from "./pg/telemetry.schema";
 type Dialect = "sqlite" | "pg";
 
 const sortStrings = (values: string[]) =>
-  values.toSorted((a, b) => a.localeCompare(b));
+  sort(values, (a, b) => a.localeCompare(b));
 
 function asStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value)) return null;
