@@ -1,4 +1,5 @@
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
+import { markDubReferredOrganization } from "@/server/referrals/dub";
 import { slugify, toHex } from "./org-slug";
 
 type HostedUser = {
@@ -68,13 +69,23 @@ export async function getOrCreateDefaultHostedOrganization(
   userId: string,
   createOrganization: HostedOrganizationCreator,
 ) {
-  const existingOrganizationId =
+  let organizationId =
     await AuthRepository.findFirstOrganizationIdForUser(userId);
 
-  if (existingOrganizationId) {
-    return existingOrganizationId;
+  if (!organizationId) {
+    const hostedUser = await getHostedUser(userId);
+    organizationId = await createDefaultHostedOrganization(
+      hostedUser,
+      createOrganization,
+    );
   }
 
-  const hostedUser = await getHostedUser(userId);
-  return createDefaultHostedOrganization(hostedUser, createOrganization);
+  // On every session, not just org creation: the signup-time referral pin can
+  // land after the org exists (email verification from another location, or
+  // BYPASS_EMAIL_VERIFICATION creating the session inside the signup
+  // transaction before user.create.after hooks flush), so later logins repair
+  // the org pin. No-ops without a user pin.
+  await markDubReferredOrganization(userId);
+
+  return organizationId;
 }

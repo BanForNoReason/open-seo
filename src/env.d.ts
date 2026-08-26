@@ -35,6 +35,9 @@ declare namespace Cloudflare {
     LOOPS_TRANSACTIONAL_RESET_PASSWORD_ID?: string;
     AUTUMN_SECRET_KEY?: string;
     AUTUMN_WEBHOOK_SECRET?: string;
+    // Dub referral conversion tracking (hosted only); all Dub code no-ops
+    // when unset.
+    DUB_API_KEY?: string;
     // HMAC secret for the operator-only GDPR storage-erasure endpoint.
     GDPR_ERASURE_SECRET?: string;
 

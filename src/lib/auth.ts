@@ -19,6 +19,7 @@ import {
   hasHostedTurnstileConfig,
 } from "@/lib/auth-turnstile";
 import { getOrCreateDefaultHostedOrganization } from "@/server/auth/default-hosted-organization";
+import { captureDubReferralSignup } from "@/server/referrals/dub";
 import {
   sendHostedPasswordResetEmail,
   sendHostedVerificationEmail,
@@ -126,8 +127,11 @@ function createAuth() {
             }
             return { data: user };
           },
-          after: async (user) => {
+          after: async (user, ctx) => {
             await syncHostedSignupContact(user);
+            if (isHostedAuthMode(env.AUTH_MODE)) {
+              await captureDubReferralSignup(user.id, ctx?.request);
+            }
           },
         },
       },

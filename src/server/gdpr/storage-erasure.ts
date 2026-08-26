@@ -4,6 +4,10 @@ import type { OnboardingChatAgent } from "@/server/features/onboarding/Onboardin
 import type { SamChatAgent } from "@/server/features/sam/SamChatAgent";
 import { captureServerError } from "@/server/lib/posthog";
 import {
+  DUB_REFERRED_ORG_KV_PREFIX,
+  DUB_REFERRED_USER_KV_PREFIX,
+} from "@/server/referrals/dub";
+import {
   AI_SEARCH_PROMPT_CACHE_NAMESPACE,
   cacheObjectPrefix,
 } from "@/server/lib/r2-cache";
@@ -210,6 +214,14 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
   // hold no personal data (org id key, "1" value), expire on their own 24h
   // TTL, and clearing them would let an in-flight authenticated request
   // re-create the Autumn customer before the Postgres delete lands.
+
+  // Dub referral pins key on user/org ids and store a referral click
+  // identifier. The Dub-side customer record (pseudonymous external id) is
+  // removed via the erasure runbook.
+  await env.KV.delete(`${DUB_REFERRED_USER_KV_PREFIX}${payload.userId}`);
+  for (const organizationId of payload.organizationIds) {
+    await env.KV.delete(`${DUB_REFERRED_ORG_KV_PREFIX}${organizationId}`);
+  }
 
   for (let index = 0; index < payload.r2Keys.length; index += 1_000) {
     await env.R2.delete(payload.r2Keys.slice(index, index + 1_000));
