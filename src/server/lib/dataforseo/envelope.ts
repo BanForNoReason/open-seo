@@ -42,8 +42,8 @@ export class DataforseoChargedTaskError extends AppError {
   }
 }
 
-// The SDK types cost / path / result_count as optional with no runtime
-// validation, so this is the one guard that guarantees we can bill a call.
+// cost / path / result_count arrive from the wire untyped and optional, so
+// this is the one guard that guarantees we can bill a call.
 const billingMetadataSchema = z.object({
   path: z.array(z.string()),
   cost: z.number(),
@@ -65,6 +65,21 @@ export interface DataforseoResponseLike<T extends DataforseoTaskLike> {
   status_message?: string;
   tasks?: T[];
   [key: string]: unknown;
+}
+
+/** `task.result[0]` entry carrying an `items` list — the common live-endpoint
+ *  shape. The index signature covers per-endpoint extras (`check_url`, …). */
+export interface DataforseoItemsResult<TItem> {
+  items?: TItem[] | null;
+  total_count?: number | null;
+  [key: string]: unknown;
+}
+
+/** Task whose `result` entries follow the `items` shape. Item types are the
+ *  caller's claim about the payload (as the SDK's were); fields we act on are
+ *  Zod-validated by the section fetchers. */
+export interface DataforseoItemsTask<TItem> extends DataforseoTaskLike {
+  result?: DataforseoItemsResult<TItem>[];
 }
 
 function tryBuildTaskBilling(task: unknown): DataforseoApiCallCost | null {

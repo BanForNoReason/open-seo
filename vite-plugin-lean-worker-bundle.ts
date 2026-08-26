@@ -15,16 +15,9 @@ const WORKERS_AI_PROVIDER_STUB = fileURLToPath(
  * startup (production OOM bursts trace back to baseline heap, not leaks), so
  * each of these is either loaded lazily behind a dynamic import or stubbed
  * out. `generateBundle` below fails the build if one sneaks back in via a
- * static import chain — e.g. an eager `import { fetchLiveSerp } from
- * "@/server/lib/dataforseo/serp"` instead of going through the metered client.
+ * static import chain.
  */
 const EAGER_DENYLIST: Array<{ pattern: RegExp; expected: string }> = [
-  {
-    pattern: /node_modules\/dataforseo-client\//,
-    expected:
-      "lazy-loaded behind loadDataforseoSections() — eager code must go " +
-      "through the metered client or src/server/lib/dataforseo/shared.ts",
-  },
   {
     pattern: /node_modules\/autumn-js\//,
     expected:

@@ -98,7 +98,6 @@
     "better-auth": "^1.6.22",
     "cloudflare": "^5.2.0",
     "daisyui": "^5.5.5",
-    "dataforseo-client": "^2.0.19",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.4.1",
     "htmlparser2": "^10.1.0",

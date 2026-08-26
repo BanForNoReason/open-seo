@@ -1,12 +1,5 @@
 import { z } from "zod";
-import {
-  SerpApiStopCrawlOnMatchInfo,
-  SerpGoogleLocalFinderLiveAdvancedRequestInfo,
-  SerpGoogleMapsLiveAdvancedRequestInfo,
-  SerpGoogleOrganicLiveAdvancedRequestInfo,
-  SerpGoogleOrganicTaskPostRequestInfo,
-} from "dataforseo-client";
-import { serpApi } from "@/server/lib/dataforseo/core";
+import { dataforseoGet, dataforseoPost } from "@/server/lib/dataforseo/core";
 import { MAX_TASKS_PER_POST } from "@/server/lib/dataforseo/shared";
 import {
   assertOk,
@@ -15,6 +8,8 @@ import {
   isTaskInProgress,
   parseTaskItems,
   type DataforseoApiResponse,
+  type DataforseoItemsTask,
+  type DataforseoTaskLike,
 } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
 
@@ -34,10 +29,7 @@ function clampSerpDepth(depth: number): number {
 function stopCrawlOnTarget(targetDomain: string) {
   return {
     stop_crawl_on_match: [
-      new SerpApiStopCrawlOnMatchInfo({
-        match_value: targetDomain,
-        match_type: "with_subdomains",
-      }),
+      { match_value: targetDomain, match_type: "with_subdomains" },
     ],
     find_targets_in: ["organic"],
   };
@@ -87,16 +79,19 @@ export async function fetchLiveSerp(input: {
   locationCode: number;
   languageCode: string;
 }): Promise<DataforseoApiResponse<SerpLiveItem[]>> {
-  const response = await serpApi().googleOrganicLiveAdvanced([
-    new SerpGoogleOrganicLiveAdvancedRequestInfo({
-      keyword: input.keyword,
-      location_code: input.locationCode,
-      language_code: input.languageCode,
-      device: "desktop",
-      os: "windows",
-      depth: 100,
-    }),
-  ]);
+  const response = await dataforseoPost(
+    "/v3/serp/google/organic/live/advanced",
+    [
+      {
+        keyword: input.keyword,
+        location_code: input.locationCode,
+        language_code: input.languageCode,
+        device: "desktop",
+        os: "windows",
+        depth: 100,
+      },
+    ],
+  );
   const task = assertOk(response);
   return {
     data: parseTaskItems(
@@ -155,17 +150,20 @@ export async function fetchRankCheckSerp(input: {
   const locationParams = input.locationName
     ? { location_name: input.locationName }
     : { location_code: input.locationCode };
-  const response = await serpApi().googleOrganicLiveAdvanced([
-    new SerpGoogleOrganicLiveAdvancedRequestInfo({
-      keyword: input.keyword,
-      ...locationParams,
-      language_code: input.languageCode,
-      device: input.device,
-      os: input.device === "desktop" ? "windows" : "android",
-      depth,
-      ...stopCrawlOnTarget(input.targetDomain),
-    }),
-  ]);
+  const response = await dataforseoPost(
+    "/v3/serp/google/organic/live/advanced",
+    [
+      {
+        keyword: input.keyword,
+        ...locationParams,
+        language_code: input.languageCode,
+        device: input.device,
+        os: input.device === "desktop" ? "windows" : "android",
+        depth,
+        ...stopCrawlOnTarget(input.targetDomain),
+      },
+    ],
+  );
 
   // "No Search Results" (40501) is valid for obscure/new keywords — treat as an
   // empty result set rather than failing the whole rank-tracking run.
@@ -217,26 +215,26 @@ export async function postRankCheckTasks(input: {
   const locationParams = input.locationName
     ? { location_name: input.locationName }
     : { location_code: input.locationCode };
-  const response = await serpApi().googleOrganicTaskPost(
-    input.tasks.map(
-      (task) =>
-        new SerpGoogleOrganicTaskPostRequestInfo({
-          keyword: task.keyword,
-          ...locationParams,
-          language_code: input.languageCode,
-          device: task.device,
-          os: task.device === "desktop" ? "windows" : "android",
-          depth,
-          // Queued tasks are billed provisionally at full depth at post time;
-          // task_get later reports the reduced actual cost when the crawl
-          // stopped early. We meter customers on the post-time amount —
-          // collection-time metering is a possible future optimization.
-          ...stopCrawlOnTarget(input.targetDomain),
-          // Echoed back on the response entry and task_get; used to map a
-          // DataForSEO task id back to our keyword without relying on order.
-          tag: `${task.keywordId}:${task.device}`,
-        }),
-    ),
+  const response = await dataforseoPost<
+    DataforseoTaskLike & { id?: string; data?: Record<string, unknown> }
+  >(
+    "/v3/serp/google/organic/task_post",
+    input.tasks.map((task) => ({
+      keyword: task.keyword,
+      ...locationParams,
+      language_code: input.languageCode,
+      device: task.device,
+      os: task.device === "desktop" ? "windows" : "android",
+      depth,
+      // Queued tasks are billed provisionally at full depth at post time;
+      // task_get later reports the reduced actual cost when the crawl
+      // stopped early. We meter customers on the post-time amount —
+      // collection-time metering is a possible future optimization.
+      ...stopCrawlOnTarget(input.targetDomain),
+      // Echoed back on the response entry and task_get; used to map a
+      // DataForSEO task id back to our keyword without relying on order.
+      tag: `${task.keywordId}:${task.device}`,
+    })),
   );
 
   if (!response || response.status_code !== 20000) {
@@ -296,7 +294,9 @@ export async function fetchRankCheckTaskResult(input: {
   keyword: string;
   targetDomain: string;
 }): Promise<RankCheckTaskOutcome> {
-  const response = await serpApi().googleOrganicTaskGetAdvanced(input.taskId);
+  const response = await dataforseoGet(
+    `/v3/serp/google/organic/task_get/advanced/${encodeURIComponent(input.taskId)}`,
+  );
   const task = response?.tasks?.[0];
   if (!response || response.status_code !== 20000 || !task) {
     throw new AppError(
@@ -344,11 +344,11 @@ export async function fetchLocalSerp(input: {
 }): Promise<DataforseoApiResponse<Record<string, unknown>[]>> {
   const os = input.device === "desktop" ? "windows" : "android";
 
-  // Maps and Local Finder return different SDK item models; both carry an index
-  // signature, so the typed items assign cleanly to the generic row shape.
   if (input.searchType === "maps") {
-    const response = await serpApi().googleMapsLiveAdvanced([
-      new SerpGoogleMapsLiveAdvancedRequestInfo({
+    const response = await dataforseoPost<
+      DataforseoItemsTask<Record<string, unknown>>
+    >("/v3/serp/google/maps/live/advanced", [
+      {
         keyword: input.keyword,
         location_coordinate: input.locationCoordinate,
         language_code: input.languageCode,
@@ -356,7 +356,7 @@ export async function fetchLocalSerp(input: {
         os,
         depth: input.depth,
         search_places: input.searchPlaces,
-      }),
+      },
     ]);
     // 40501 = billed empty SERP; DataForSEO returns it for some coordinate-only
     // Maps and Local Finder queries (both paths below opt in).
@@ -367,15 +367,17 @@ export async function fetchLocalSerp(input: {
     };
   }
 
-  const response = await serpApi().googleLocalFinderLiveAdvanced([
-    new SerpGoogleLocalFinderLiveAdvancedRequestInfo({
+  const response = await dataforseoPost<
+    DataforseoItemsTask<Record<string, unknown>>
+  >("/v3/serp/google/local_finder/live/advanced", [
+    {
       keyword: input.keyword,
       location_coordinate: input.locationCoordinate,
       language_code: input.languageCode,
       device: input.device,
       os,
       depth: input.depth,
-    }),
+    },
   ]);
   const task = assertOk(response, { treatNoResultsAsEmpty: true });
   return {
