@@ -27,6 +27,9 @@ export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
 const NON_REPORTABLE_ERROR_CODES = new Set<ErrorCode>([
   "UNAUTHENTICATED",
+  // External throttling (Google Analytics quota, Autumn, DataForSEO): expected
+  // and transient, and nothing in the app can act on it.
+  "RATE_LIMITED",
   "NOT_FOUND",
   "PAYMENT_REQUIRED",
   "INSUFFICIENT_CREDITS",

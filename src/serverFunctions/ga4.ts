@@ -5,6 +5,7 @@ import { z } from "zod";
 import { shiftGa4Date } from "@/server/features/ga4/services/Ga4Dates";
 import { Ga4OrganicOverviewService } from "@/server/features/ga4/services/Ga4OrganicOverviewService";
 import { Ga4Service } from "@/server/features/ga4/services/Ga4Service";
+import { AppError } from "@/server/lib/errors";
 import { Ga4ReportError } from "@/server/lib/ga4Errors";
 import { hasSelfHostedGoogleOAuthConfig } from "@/server/features/google/oauth-config";
 import {
@@ -122,6 +123,15 @@ export const getGa4DashboardReport = createServerFn({ method: "POST" })
           error.code === "ga4_property_inaccessible")
       ) {
         return { connected: false as const };
+      }
+      // Google's per-property reporting quota is exhausted: an external,
+      // transient condition, not an app fault. Surface it as RATE_LIMITED so
+      // error tracking skips it — the card keeps its own "try again" copy.
+      if (
+        error instanceof Ga4ReportError &&
+        error.code === "ga4_quota_exhausted"
+      ) {
+        throw new AppError("RATE_LIMITED");
       }
       throw error;
     }
