@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import {
   customerHasManagedAccess,
   customerHasPaidPlan,
+  getOrCreateOrganizationCustomer,
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
@@ -29,12 +30,16 @@ import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 // small audit at a time, paid keeps the full limits, and customers with no
 // Autumn product at all are turned away. Self-hosted isn't gated.
 async function resolveAuditLimitTier(
-  organizationId: string,
+  customer: BillingCustomerContext,
 ): Promise<AuditLimitTier> {
   if (!(await isHostedServerAuthMode())) return "self_hosted";
+  // An org minted outside a billing path (better-auth hooks, MCP auth) has no
+  // Autumn customer yet, and `check` 404s instead of reporting no access — a
+  // brand-new MCP user's first audit failed with a raw billing error.
+  await getOrCreateOrganizationCustomer(customer);
   const [hasManagedAccess, hasPaidPlan] = await Promise.all([
-    customerHasManagedAccess(organizationId),
-    customerHasPaidPlan(organizationId),
+    customerHasManagedAccess(customer.organizationId),
+    customerHasPaidPlan(customer.organizationId),
   ]);
   if (!hasManagedAccess) {
     throw new AppError("PAYMENT_REQUIRED", "Subscribe to run site audits");

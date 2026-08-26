@@ -87,9 +87,7 @@ export const runSiteAuditTool = {
     // many-minute wait, which chat agents handle badly. The app UI passes its
     // own explicit lighthouseStrategy, so this default only governs agents.
     const lighthouseStrategy = (args.runLighthouse ?? false) ? "auto" : "none";
-    const limitTier = await AuditService.resolveAuditLimitTier(
-      context.auth.organizationId,
-    );
+    const limitTier = await AuditService.resolveAuditLimitTier(context.billing);
     let auditId: string;
     try {
       ({ auditId } = await AuditService.startAudit({
