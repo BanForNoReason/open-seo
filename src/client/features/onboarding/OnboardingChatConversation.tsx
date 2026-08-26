@@ -87,7 +87,12 @@ export function OnboardingChatConversation({
   // in the Worker (src/server.ts) before it reaches the DO; billing gates come
   // back as normal assistant messages rather than HTTP errors.
   const agent = useAgent({ agent: "onboarding-chat", name: projectId });
-  const { messages, sendMessage, status } = useAgentChat({ agent });
+  // Same constraint as SAM: dense tool-input deltas fan out one store update
+  // per chunk and trip React #185 unthrottled (cloudflare/agents#1361).
+  const { messages, sendMessage, status } = useAgentChat({
+    agent,
+    experimental_throttle: 50,
+  });
 
   // This chat is only ever the pre-upgrade free preview: once a user upgrades
   // they are routed into the GSC onboarding step and never return here, so
