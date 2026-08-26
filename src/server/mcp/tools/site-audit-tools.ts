@@ -73,7 +73,9 @@ export const runSiteAuditTool = {
     inputSchema: runInputSchema,
     outputSchema: z
       .object({
-        auditId: z.string(),
+        // Expected refusal responses (for example, account audit capacity)
+        // do not start an audit and therefore have no id.
+        auditId: z.string().optional(),
         ...optionalMetaOutputSchema,
       })
       .passthrough(),
@@ -101,12 +103,17 @@ export const runSiteAuditTool = {
         limitTier,
       }));
     } catch (error) {
-      if (
-        error instanceof AppError &&
-        error.code === "AUDIT_CAPACITY_REACHED"
-      ) {
+      // Expected refusals become readable answers instead of protocol errors:
+      // no audit started, so there is no auditId to report.
+      const refusalText =
+        error instanceof AppError && error.code === "AUDIT_CAPACITY_REACHED"
+          ? "Audit capacity reached for this account — delete old audits in the dashboard to free capacity, then try again."
+          : error instanceof AppError && error.code === "AUDIT_ALREADY_RUNNING"
+            ? "This account is at its limit of concurrently running audits. Poll get_audit_status until one finishes, then try again."
+            : null;
+      if (refusalText) {
         return mcpResponse({
-          text: "Audit capacity reached for this account — delete old audits in the dashboard to free capacity, then try again.",
+          text: refusalText,
           meta: buildProjectMeta(
             context,
             args.projectId,

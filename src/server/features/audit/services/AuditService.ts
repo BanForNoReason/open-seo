@@ -26,9 +26,9 @@ import {
 import { reconcileRunningAudit } from "@/server/features/audit/services/auditReconciler";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 
-// Plan-tier limits are the abuse bound in hosted mode: free accounts get one
-// small audit at a time, paid keeps the full limits, and customers with no
-// Autumn product at all are turned away. Self-hosted isn't gated.
+// Plan-tier limits are the abuse bound in hosted mode: free accounts get small
+// audits with a bounded burst, paid keeps the full limits, and customers with
+// no Autumn product at all are turned away. Self-hosted isn't gated.
 async function resolveAuditLimitTier(
   customer: BillingCustomerContext,
 ): Promise<AuditLimitTier> {
@@ -91,10 +91,10 @@ async function startAudit(input: {
   try {
     // Concurrency and capacity are enforced after the insert, not before: a
     // pre-insert read is a check-then-act race, so parallel requests would all
-    // pass the free tier's one-running-audit gate. Post-insert, each request
-    // sees at least its own row, so at most one racer can pass; the losers
-    // roll back via the catch below. Two true racers may both abort — the
-    // user just retries.
+    // pass the free tier's running-audits gate. Post-insert, each request sees
+    // at least its own row, so racers can't all slip under the limit; the
+    // losers roll back via the catch below. Racers at the boundary may all
+    // abort — the user just retries.
     const usage = await AuditRepository.getAuditUsageForUser(input.actorUserId);
     if (usage.runningCount > limits.maxRunningAudits) {
       throw new AppError("AUDIT_ALREADY_RUNNING");
