@@ -302,9 +302,13 @@ export class SamChatAgent extends Think {
         // SAM is meant to run complex multi-step work in one turn (site-read
         // intake plus a full research chain, multi-competitor sweeps), so give
         // it generous headroom — cost is bounded by per-step metering and the
-        // model stopping on its own, not by this cap.
+        // model stopping on its own, not by this cap. The per-step budget is
+        // shared by max-effort reasoning + visible output; a tight cap risks
+        // reasoning eating the reply (the issue #161 failure mode), so it's
+        // deliberately roomy — ~10x measured reasoning use — while keeping the
+        // worst-case turn (48 steps at the full cap) under ~$2.
         maxSteps: 48,
-        maxOutputTokens: 6000,
+        maxOutputTokens: 32_000,
       };
     });
   }
