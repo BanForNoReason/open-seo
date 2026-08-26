@@ -106,7 +106,7 @@ async function checkBatchLive(
       results.push(outcome.value);
       return;
     }
-    const reason = outcome.reason;
+    const reason: unknown = outcome.reason;
     const code = reason instanceof AppError ? reason.code : "UNKNOWN";
     const message = reason instanceof Error ? reason.message : String(reason);
     // DataForSEO erring on its own side is a provider flake, not our bug: the

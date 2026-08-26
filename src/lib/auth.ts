@@ -68,14 +68,27 @@ function createAuth() {
   const auth = betterAuth({
     baseURL: baseUrl,
     secret: getHostedSecret(),
-    // The api-key plugin logs every verification failure at error level — a
-    // stale key or a throttled caller included. The /mcp handler already logs
-    // the response it returns at the right level (debug for 401, warn for 429),
-    // so drop the duplicate.
     logger: {
-      log: (level, message, ...args) => {
+      log: (level, message, ...args: unknown[]) => {
+        // The api-key plugin logs every verification failure at error level — a
+        // stale key or a throttled caller included. The /mcp handler already logs
+        // the response it returns at the right level (debug for 401, warn for 429),
+        // so drop the duplicate.
         if (message.startsWith("Failed to validate API key")) return;
-        console[level](`[better-auth] ${message}`, ...args);
+        // "Failed to parse state" is user/browser behavior: a replayed OAuth
+        // callback URL (back button, restored tab), or a consent screen left
+        // open past the state's lifetime. The request already redirects the
+        // user to an error page; nothing here is on-call actionable.
+        const effectiveLevel =
+          level === "error" && message === "Failed to parse state"
+            ? "warn"
+            : level;
+        // Also drops Better Auth's ISO-timestamp prefix, which makes every log
+        // line fingerprint as its own error group in observability.
+        console[effectiveLevel === "debug" ? "log" : effectiveLevel](
+          `[better-auth] ${message}`,
+          ...args,
+        );
       },
     },
     ...baseAuthConfig,

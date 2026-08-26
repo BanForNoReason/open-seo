@@ -103,6 +103,7 @@ export async function handleMcpApiKeyRequest(
     // clients (see lib/auth-api-key.ts). Cloudflare's counter is per-colo
     // best-effort, which is all this needs to be: credits bound spend, this
     // bounds runaway request volume.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the binding is declared in alchemy.run.ts; env stays unknown through the MCP handler chain
     const rateLimit = (env as { MCP_RATE_LIMIT?: RateLimit }).MCP_RATE_LIMIT;
     if (rateLimit) {
       const { success } = await rateLimit.limit({ key: userId });

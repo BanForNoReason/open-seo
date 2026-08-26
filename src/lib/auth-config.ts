@@ -15,6 +15,16 @@ export function createBaseAuthConfig() {
         // /api/auth endpoint. Header lookup is case-insensitive.
         ipAddressHeaders: ["cf-connecting-ip"],
       },
+      // Better Auth writes the OAuth state verification row with a 10-minute
+      // expiry but sets the matching signed cookie with maxAge 300, and
+      // parseGenericState checks the cookie before the row's expiresAt — so the
+      // intended 10-minute window is unreachable. The GSC and GA4 providers
+      // below force `select_account consent`, a two-screen Google flow, so a
+      // user who takes more than 5 minutes returns with a live verification row
+      // and a dead cookie and fails with "State mismatch: State not persisted
+      // correctly". The row's expiresAt still enforces the real 10-minute
+      // window and the state stays single-use, so this is not a weakening.
+      cookies: { state: { attributes: { maxAge: 600 } } },
     },
     account: {
       // Encrypt OAuth access/refresh tokens at rest in D1. Also covers the
