@@ -5,7 +5,6 @@ import {
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
-import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import {
   AUDIT_LIMITS,
   clampAuditMaxPages,
@@ -259,10 +258,11 @@ async function remove(auditId: string, projectId: string) {
   }
 
   await AuditRepository.deleteAuditForProject(auditId, projectId);
-  // Best-effort: drop the crawl scratchpad DO with the audit. A missed
-  // destroy self-cleans via the DO's 7-day alarm.
+  // Best-effort: drop the crawl scratchpad DO with the audit (it lives in
+  // the open-seo-audit worker, behind the AuditEngine RPC). A missed destroy
+  // self-cleans via the DO's 7-day alarm.
   try {
-    await getAuditScratchpad(auditId).destroy();
+    await env.AUDIT_ENGINE.destroyScratchpad(auditId);
   } catch (error) {
     console.warn(`Failed to destroy audit scratchpad ${auditId}:`, error);
   }

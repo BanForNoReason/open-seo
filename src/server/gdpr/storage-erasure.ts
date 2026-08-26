@@ -1,5 +1,4 @@
 import { getAuth } from "@/lib/auth";
-import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import type { OnboardingChatAgent } from "@/server/features/onboarding/OnboardingChatAgent";
 import type { SamChatAgent } from "@/server/features/sam/SamChatAgent";
 import { captureServerError } from "@/server/lib/posthog";
@@ -207,7 +206,9 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
       .destroyForErasure();
   }
   for (const auditId of payload.auditIds) {
-    await getAuditScratchpad(auditId).destroyForErasure();
+    // The scratchpad DO lives in the open-seo-audit worker; destroy is the
+    // same full wipe destroyForErasure performs.
+    await env.AUDIT_ENGINE.destroyScratchpad(auditId);
     await env.KV.delete(`audit-progress:${auditId}`);
   }
   // The autumn:customer-ensured KV markers are deliberately left alone: they

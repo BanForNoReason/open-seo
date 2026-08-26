@@ -13,8 +13,16 @@ declare namespace Cloudflare {
     SAM_CHAT: DurableObjectNamespace;
 
     // Durable Object holding per-audit crawl scratch state (frontier, link
-    // edges, page mirror). Untyped here; getAuditScratchpad narrows the stub.
+    // edges, page mirror). Bound ONLY in the open-seo-audit aux worker;
+    // untyped here — getAuditScratchpad narrows the stub.
     AUDIT_SCRATCHPAD: DurableObjectNamespace;
+
+    // Service binding to the audit worker's AuditEngine entrypoint (cancel +
+    // GDPR erasure of scratchpad state). The inline import() is required: a
+    // top-level import would turn this ambient file into a module and break
+    // the global augmentation.
+    // oxlint-disable-next-line typescript-eslint/consistent-type-imports
+    AUDIT_ENGINE: Service<typeof import("./audit-worker").default>;
 
     AUTH_MODE?: "cloudflare_access" | "local_noauth" | "hosted";
     BYPASS_EMAIL_VERIFICATION?: string;

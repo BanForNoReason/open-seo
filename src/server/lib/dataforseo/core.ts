@@ -167,6 +167,30 @@ export function dataforseoPost<
   return requestDataforseo("POST", path, tasks, options);
 }
 
+/**
+ * POST like {@link dataforseoPost} but return the UN-CONSUMED Response
+ * (headers only) — the same auth, retry policy, and HTTP-error ladder apply.
+ * For the one endpoint whose body is too big to read eagerly: Lighthouse
+ * gates its multi-MB body reads behind a parse lock in the audit worker, and
+ * passes its own `signal` so the timeout can be cleared once headers arrive.
+ */
+export function dataforseoPostResponse(
+  path: string,
+  tasks: unknown[],
+  options: DataforseoRequestOptions & { signal?: AbortSignal } = {},
+): Promise<Response> {
+  const doFetch = createAuthenticatedFetch(
+    options.classify,
+    options.maxServerErrorRetries,
+  );
+  return doFetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(tasks),
+    signal: options.signal,
+  });
+}
+
 /** GET a DataForSEO endpoint (task_get collection, appendix/locations data). */
 export function dataforseoGet<
   TTask extends DataforseoTaskLike = DataforseoTaskLike,

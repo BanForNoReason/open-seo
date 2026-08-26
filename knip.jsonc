@@ -5,6 +5,8 @@
     "alchemy.preview-access.run.ts",
     // Detect Tanstack Start Routes
     "cli-auth.ts",
+    // Site-audit aux worker entry (wrangler.audit.jsonc)
+    "src/audit-worker.ts",
     "src/start.ts",
     "src/router.tsx",
     "src/routes/**/*.ts",
