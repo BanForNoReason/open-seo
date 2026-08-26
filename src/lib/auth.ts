@@ -104,6 +104,14 @@ function createAuth() {
           },
         },
     socialProviders: getSocialProviders(),
+    // Where OAuth redirect-flow failures land when Better Auth can't honor a
+    // per-flow errorCallbackURL (Google-side errors like a canceled consent
+    // screen, replayed callback URLs, sign-in failures). Without this the
+    // default /api/auth/error page 302s to `/?error=...` and the dashboard
+    // silently discards the code. Self-hosted never serves these flows (its
+    // Google OAuth endpoints are hand-rolled), so the placeholder baseUrl
+    // there is harmless.
+    onAPIError: { errorURL: `${baseUrl}/auth-error` },
     trustedOrigins: getTrustedOrigins(baseUrl),
     database,
     plugins: [
