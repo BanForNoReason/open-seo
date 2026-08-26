@@ -75,7 +75,34 @@ function createAuthenticatedFetch(
       init?.signal ?? AbortSignal.timeout(DATAFORSEO_REQUEST_TIMEOUT_MS);
 
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, { ...init, headers, signal });
+      let response: Response;
+      try {
+        response = await fetch(url, { ...init, headers, signal });
+      } catch (error) {
+        // Both abort flavours mean "we ran out of time", and neither carries a
+        // useful name of its own: the shared budget above rejects with
+        // TimeoutError, while Lighthouse passes its own AbortController
+        // deadline via init.signal and rejects with AbortError. Classify them
+        // so callers get a provider-degradation error instead of an anonymous
+        // internal one. Deliberately not retried: a call that ran past the
+        // deadline may already be billed by DataForSEO, and because this is not
+        // a DataforseoChargedTaskError the customer is metered nothing for it,
+        // so replaying would be spend we eat twice.
+        if (
+          error instanceof Error &&
+          (error.name === "TimeoutError" || error.name === "AbortError")
+        ) {
+          const path = formatDataforseoRequestPath(url);
+          const timeoutError = new AppError(
+            "UPSTREAM_UNAVAILABLE",
+            `DataForSEO request timed out on ${path}`,
+            { provider: "dataforseo", providerPath: path },
+          );
+          timeoutError.name = "DataForSEOTimeoutError";
+          throw timeoutError;
+        }
+        throw error;
+      }
       if (response.ok) return response;
 
       // Transient upstream 5xx on an idempotent read -> back off and retry.

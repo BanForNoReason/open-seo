@@ -13,6 +13,15 @@ import {
 } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
 
+// Default depth for keyword SERP analysis. DataForSEO crawls (and bills) one
+// Google page of 10 results at a time, and the crawls are sequential, so depth
+// is the single lever on both latency and cost here: every 10 results is
+// another page fetch against the shared 60s request budget. Keep this low —
+// callers that need to see deeper ranks pass an explicit depth. There is no
+// offset/cursor: a deeper request re-crawls pages 1..N/10 from the top, so it
+// replaces the shallow snapshot rather than extending it.
+export const SERP_ANALYSIS_DEPTH = 20;
+
 /** DataForSEO bills SERPs in pages of 10; depth outside 10-100 is rejected. */
 function clampSerpDepth(depth: number): number {
   return Math.min(100, Math.max(10, depth));
@@ -78,6 +87,7 @@ export async function fetchLiveSerp(input: {
   keyword: string;
   locationCode: number;
   languageCode: string;
+  depth?: number;
 }): Promise<DataforseoApiResponse<SerpLiveItem[]>> {
   const response = await dataforseoPost(
     "/v3/serp/google/organic/live/advanced",
@@ -88,7 +98,7 @@ export async function fetchLiveSerp(input: {
         language_code: input.languageCode,
         device: "desktop",
         os: "windows",
-        depth: 100,
+        depth: clampSerpDepth(input.depth ?? SERP_ANALYSIS_DEPTH),
       },
     ],
   );

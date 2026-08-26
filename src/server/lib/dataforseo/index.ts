@@ -18,6 +18,8 @@ export {
   type LlmPlatform,
 } from "@/server/lib/dataforseo/shared";
 
+export { SERP_ANALYSIS_DEPTH } from "@/server/lib/dataforseo/serp";
+
 export { normalizeBacklinksTarget } from "@/server/lib/dataforseoBacklinksTarget";
 
 // Section fetchers called outside the metered client. Task collection is free
