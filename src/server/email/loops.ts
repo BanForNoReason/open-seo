@@ -58,6 +58,7 @@ async function sendLoopsTransactionalEmail({
       addToAudience: false,
       dataVariables,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (response.ok) {
