@@ -138,10 +138,11 @@ function createAuthenticatedFetch(
       );
       error.name = "DataForSEOHttpError";
       // UPSTREAM_UNAVAILABLE is non-reportable, and the error handlers only log
-      // what they capture, so log here to keep the provider's failure rate
-      // visible in Workers Observability.
+      // what they capture, so warn here to keep the provider's failure rate
+      // visible in Workers Observability. Warn, not error: there is nothing in
+      // the app to fix.
       if (code === "UPSTREAM_UNAVAILABLE")
-        console.error("dataforseo.upstream-http-failed", {
+        console.warn("dataforseo.upstream-http-failed", {
           path,
           status: response.status,
         });
