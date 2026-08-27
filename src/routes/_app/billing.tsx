@@ -13,6 +13,7 @@ import { parseTopUpAmount } from "@/client/features/billing/HostedBillingContent
 import { getBillingRouteState } from "@/client/features/billing/route-state";
 import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
 import {
+  AUTUMN_CHECKOUT_SESSION_PARAMS,
   AUTUMN_PAID_PLAN_ID,
   BILLING_ROUTE,
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
@@ -103,6 +104,7 @@ function BillingPage() {
       planId: AUTUMN_PAID_PLAN_ID,
       redirectMode: "always",
       successUrl: buildCheckoutSuccessUrl(BILLING_ROUTE),
+      checkoutSessionParams: AUTUMN_CHECKOUT_SESSION_PARAMS,
     });
   }
 
@@ -282,6 +284,7 @@ function BillingPage() {
                       planId: AUTUMN_SEO_DATA_TOP_UP_PLAN_ID,
                       redirectMode: "always",
                       successUrl: window.location.href,
+                      checkoutSessionParams: AUTUMN_CHECKOUT_SESSION_PARAMS,
                       featureQuantities: [
                         {
                           featureId: AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,

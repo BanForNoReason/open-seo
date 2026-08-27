@@ -12,6 +12,7 @@ import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection"
 import { normalizeAuthRedirect } from "@/lib/auth-redirect";
 import { useCanManageBilling } from "@/client/features/team/organizationQueries";
 import {
+  AUTUMN_CHECKOUT_SESSION_PARAMS,
   AUTUMN_MANAGED_ACCESS_FEATURE_ID,
   AUTUMN_PAID_PLAN_ID,
 } from "@/shared/billing";
@@ -200,6 +201,7 @@ function SubscribePage() {
         planId: AUTUMN_PAID_PLAN_ID,
         redirectMode: "always",
         successUrl: successUrl.toString(),
+        checkoutSessionParams: AUTUMN_CHECKOUT_SESSION_PARAMS,
       });
     } catch (err) {
       setError(
