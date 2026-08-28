@@ -146,6 +146,11 @@ export interface CrawledPageResult {
    * response time is measured at headers and says nothing about body size.
    */
   htmlBytes: number;
+  /**
+   * Server-requested wait before retrying, from a 429's Retry-After header.
+   * Only set on 429 responses. Transient — drives the crawl throttle.
+   */
+  retryAfterMs?: number;
   imagesTotal: number;
   imagesMissingAlt: number;
   images: Array<{ src: string | null; alt: string | null }>;

@@ -4,6 +4,7 @@ import type {
 } from "@/server/lib/audit/types";
 import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
+import { parseRetryAfterMs } from "@/server/lib/audit/crawl-throttle";
 
 const CRAWL_USER_AGENT = "OpenSEO-Audit/1.0";
 const MAX_HTML_BYTES = 1024 * 1024;
@@ -127,6 +128,10 @@ export async function crawlPage(
         // The body was still fetched and buffered; report its size so the
         // crawl window's byte budget sees blocked/error pages too.
         htmlBytes: body.length,
+        retryAfterMs:
+          statusCode === 429
+            ? parseRetryAfterMs(response.headers.get("retry-after"))
+            : undefined,
       });
     }
 
@@ -248,6 +253,7 @@ function emptyPageResult(input: {
   crawlDepth: number | null;
   inSitemap: boolean;
   htmlBytes?: number;
+  retryAfterMs?: number;
 }): CrawledPageResult {
   return {
     id: crypto.randomUUID(),
@@ -275,6 +281,7 @@ function emptyPageResult(input: {
     contentHash: null,
     isHtml: false,
     htmlBytes: input.htmlBytes ?? 0,
+    retryAfterMs: input.retryAfterMs,
     imagesTotal: 0,
     imagesMissingAlt: 0,
     images: [],
