@@ -552,6 +552,21 @@ describe("MCP tool text output (service-backed tools)", () => {
     );
   });
 
+  it("get_google_analytics_organic_landing_pages states an end-date clamp", async () => {
+    mocks.runGa4Report.mockResolvedValue(
+      makeGa4ReportResult({ warnings: ["end_date_clamped"] }),
+    );
+
+    const result = await getGoogleAnalyticsOrganicLandingPagesTool.handler(
+      { projectId: "project_1", limit: 100, offset: 0 },
+      toolContext,
+    );
+
+    expect(textContent(result)).toEqual(
+      "Organic landing pages: 0 of 0 rows for 2026-07-09 through 2026-08-05. The requested endDate was moved back to 2026-08-05, the last complete Analytics day. This report is limited to Organic Search.",
+    );
+  });
+
   it("get_google_analytics_traffic_acquisition does not mention Organic Search when empty", async () => {
     mocks.runGa4Report.mockResolvedValue(
       makeGa4ReportResult({
@@ -587,6 +602,7 @@ describe("MCP tool text output (service-backed tools)", () => {
         resolvedDateRange: { startDate: "2026-07-09", endDate: "2026-08-05" },
         previousDateRange: { startDate: "2026-06-11", endDate: "2026-07-08" },
       },
+      warnings: [],
       current: {
         sessions: 120,
         activeUsers: 80,
@@ -629,13 +645,14 @@ describe("MCP tool text output (service-backed tools)", () => {
     );
   });
 
-  it("get_google_analytics_organic_overview names Organic Search when there is no current row", async () => {
+  it("get_google_analytics_organic_overview states a truncated trend and names Organic Search when there is no current row", async () => {
     mocks.getOrganicOverview.mockResolvedValue({
       status: "ok",
       request: {
         resolvedDateRange: { startDate: "2026-07-09", endDate: "2026-08-05" },
         previousDateRange: { startDate: "2026-06-11", endDate: "2026-07-08" },
       },
+      warnings: ["trend_truncated"],
       current: null,
       previous: null,
       comparison: {},
@@ -648,7 +665,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     );
 
     expect(textContent(result)).toEqual(
-      "Organic overview for 2026-07-09 through 2026-08-05, compared with 2026-06-11 through 2026-07-08. No Organic Search rows for this date range.",
+      "Organic overview for 2026-07-09 through 2026-08-05, compared with 2026-06-11 through 2026-07-08. The trend was cut at 0 rows; use trend=weekly or a shorter date range for the full series. No Organic Search rows for this date range.",
     );
   });
 });

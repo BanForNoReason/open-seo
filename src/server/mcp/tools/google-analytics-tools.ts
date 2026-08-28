@@ -257,6 +257,15 @@ function emptyOrganicHint(result: Ga4ReportResult): string {
     : " This report is limited to Organic Search.";
 }
 
+function endDateClampNote(result: {
+  warnings: string[];
+  request: { resolvedDateRange: { endDate: string } };
+}) {
+  return result.warnings.includes("end_date_clamped")
+    ? ` The requested endDate was moved back to ${result.request.resolvedDateRange.endDate}, the last complete Analytics day.`
+    : "";
+}
+
 function reportText(label: string, result: Ga4ReportResult) {
   const range = result.request.resolvedDateRange;
   const comparison = result.comparison
@@ -272,7 +281,7 @@ function reportText(label: string, result: Ga4ReportResult) {
   const paginate = result.pageInfo.hasMore
     ? " More rows are available; call again with offset to page through them."
     : "";
-  const summary = `${label}: ${result.rowCount} of ${result.totalRowCount} rows for ${range.startDate} through ${range.endDate}.${comparison}${diagnostics}${limited}${emptyOrganicHint(result)}${paginate}`;
+  const summary = `${label}: ${result.rowCount} of ${result.totalRowCount} rows for ${range.startDate} through ${range.endDate}.${endDateClampNote(result)}${comparison}${diagnostics}${limited}${emptyOrganicHint(result)}${paginate}`;
   if (result.rows.length === 0) return summary;
   return `${summary}\n${formatMcpTable(result.rows, reportTableColumns(result))}`;
 }
@@ -280,7 +289,10 @@ function reportText(label: string, result: Ga4ReportResult) {
 function overviewText(result: Ga4OverviewResult) {
   const range = result.request.resolvedDateRange;
   const previousRange = result.request.previousDateRange;
-  const summary = `Organic overview for ${range.startDate} through ${range.endDate}, compared with ${previousRange.startDate} through ${previousRange.endDate}.`;
+  const trendTruncated = result.warnings.includes("trend_truncated")
+    ? ` The trend was cut at ${result.trend.length} rows; use trend=weekly or a shorter date range for the full series.`
+    : "";
+  const summary = `Organic overview for ${range.startDate} through ${range.endDate}, compared with ${previousRange.startDate} through ${previousRange.endDate}.${endDateClampNote(result)}${trendTruncated}`;
   if (!result.current) {
     return `${summary} No Organic Search rows for this date range.`;
   }
