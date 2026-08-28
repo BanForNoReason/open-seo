@@ -20,7 +20,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "critical",
     title: "Crawler was blocked",
     explanation:
-      "The site returned a bot challenge or access denial (e.g. a Cloudflare challenge, 403, or a 429 that persisted after we slowed down and retried) instead of the page. We report this honestly rather than pretending the page is broken — but it means this page could not be audited, and other crawlers like search engines may face similar friction.",
+      "The site returned a bot challenge or access denial (e.g. a Cloudflare challenge, 403, or 429) instead of the page. We report this honestly rather than pretending the page is broken — but it means this page could not be audited, and other crawlers like search engines may face similar friction.",
     howToFix:
       'If you own this site, allowlist the "OpenSEO-Audit" user agent in your WAF/bot-protection settings (on Cloudflare: a WAF custom rule that skips bot protection when the user agent contains "OpenSEO-Audit"; on some free tiers you may need to relax bot protection). Then re-run the audit.',
   },

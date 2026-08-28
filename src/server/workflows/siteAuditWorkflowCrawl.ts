@@ -19,12 +19,6 @@ import {
   CRAWL_WINDOW,
   RETRY_CRAWL_WINDOW,
 } from "@/server/lib/audit/crawl-window";
-import {
-  backOff,
-  IDLE_THROTTLE,
-  MAX_RATE_LIMIT_RETRIES,
-  type CrawlThrottle,
-} from "@/server/lib/audit/crawl-throttle";
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
 import { pgStep } from "@/server/workflows/pgStep";
 import { CRAWL_CHUNK_STEP } from "@/server/workflows/auditStepConfigs";
@@ -112,9 +106,6 @@ export async function runCrawlPhase(
   // the site's page weight the hard way — on heavy-page sites that meant an
   // exceededMemory death every ~200 pages.
   let windowHint = CRAWL_WINDOW.initial;
-  // Same for the launch gap a rate-limiting site taught us: relearning it
-  // per chunk would cost a fresh round of 429s every 200 pages.
-  let launchGapHint = IDLE_THROTTLE.launchGapMs;
 
   while (pending > 0 && attemptedTotal < params.maxPages) {
     chunkNo += 1;
@@ -128,7 +119,6 @@ export async function runCrawlPhase(
           chunkNo,
           attemptedBefore: attemptedTotal,
           startWindow: windowHint,
-          startLaunchGapMs: launchGapHint,
         }),
     );
     // Apply the chunk's counters even when it did no new work (a retried
@@ -139,7 +129,6 @@ export async function runCrawlPhase(
     // `?? initial`: an instance in flight across a deploy replays cached
     // step results from before endWindow existed.
     windowHint = result.endWindow ?? CRAWL_WINDOW.initial;
-    launchGapHint = result.endLaunchGapMs ?? IDLE_THROTTLE.launchGapMs;
     // One zero-attempt chunk is normal (retry of a completed chunk number);
     // two in a row means the frontier is unservable — stop with what we
     // have instead of spinning forever.
@@ -156,14 +145,12 @@ async function runCrawlChunk(
     chunkNo: number;
     attemptedBefore: number;
     startWindow: number;
-    startLaunchGapMs: number;
   },
 ): Promise<{
   attemptedInChunk: number;
   attempted: number;
   pending: number;
   endWindow: number;
-  endLaunchGapMs: number;
 }> {
   const { auditId, workflowInstanceId, origin, maxPages, robots, chunkNo } =
     input;
@@ -184,7 +171,6 @@ async function runCrawlChunk(
       attempted: stats.attempted,
       pending: stats.pending,
       endWindow: input.startWindow,
-      endLaunchGapMs: input.startLaunchGapMs,
     };
   }
 
@@ -201,15 +187,6 @@ async function runCrawlChunk(
   let nextIndex = 0;
   let attemptedInChunk = 0;
   const inFlight = new Set<Promise<void>>();
-  // 429s are the site saying "slower", not "blocked": the URL goes back on
-  // the queue, the whole window pauses, and launches are spaced out.
-  let throttle: CrawlThrottle = {
-    ...IDLE_THROTTLE,
-    launchGapMs: input.startLaunchGapMs,
-  };
-  let nextLaunchAt = 0;
-  const retryQueue: ClaimedUrl[] = [];
-  const retriesByUrl = new Map<string, number>();
   let persistThreshold = FIRST_PERSIST_BATCH_SIZE;
   let batch: CrawledPageResult[] = [];
   // Persistence runs concurrently with fetching (pipelined) but sequentially
@@ -245,15 +222,6 @@ async function runCrawlChunk(
   const launch = (entry: ClaimedUrl) => {
     const promise = crawlPage(entry.url, entry.depth, entry.inSitemap)
       .then((page) => {
-        if (page.statusCode === 429) {
-          throttle = backOff(throttle, page.retryAfterMs);
-          const retries = retriesByUrl.get(entry.url) ?? 0;
-          if (retries < MAX_RATE_LIMIT_RETRIES) {
-            retriesByUrl.set(entry.url, retries + 1);
-            retryQueue.push(entry);
-            return;
-          }
-        }
         attemptedInChunk += 1;
         batch.push(page);
         if (batch.length >= persistThreshold) flush();
@@ -264,26 +232,18 @@ async function runCrawlChunk(
     inFlight.add(promise);
   };
 
-  const hasNext = () => retryQueue.length > 0 || nextIndex < claimed.length;
-
   while (true) {
-    const now = Date.now();
-    const canLaunch =
-      hasNext() &&
-      now < deadlineAt &&
-      queuedPersists <= MAX_QUEUED_PERSIST_BATCHES;
-    if (canLaunch && inFlight.size < windowSize) {
-      const waitMs = Math.min(
-        Math.max(throttle.pausedUntil, nextLaunchAt) - now,
-        deadlineAt - now,
-      );
-      if (waitMs > 0) {
-        await sleep(waitMs);
-        continue;
-      }
-      launch(retryQueue.shift() ?? claimed[nextIndex++]);
-      nextLaunchAt = Date.now() + throttle.launchGapMs;
-      continue;
+    while (
+      inFlight.size < windowSize &&
+      nextIndex < claimed.length &&
+      Date.now() < deadlineAt
+    ) {
+      // queuedPersists changes when persistChain settles. Keep it out of the
+      // loop condition because the type-aware linter cannot see that async
+      // mutation and flags the otherwise valid backpressure check.
+      if (queuedPersists > MAX_QUEUED_PERSIST_BATCHES) break;
+      launch(claimed[nextIndex]);
+      nextIndex += 1;
     }
     if (inFlight.size > 0) {
       await Promise.race(inFlight);
@@ -294,8 +254,8 @@ async function runCrawlChunk(
     // chunk is done (leases exhausted or soft deadline hit).
     if (
       queuedPersists > MAX_QUEUED_PERSIST_BATCHES &&
-      hasNext() &&
-      now < deadlineAt
+      nextIndex < claimed.length &&
+      Date.now() < deadlineAt
     ) {
       await persistChain;
       continue;
@@ -305,12 +265,8 @@ async function runCrawlChunk(
   flush();
   await persistChain;
 
-  // Leases we never launched or finished retrying (soft deadline) go back
-  // to the queue; the next chunk retries them with a fresh budget.
-  const unattempted = [
-    ...retryQueue.map((entry) => entry.url),
-    ...claimed.slice(nextIndex).map((entry) => entry.url),
-  ];
+  // Leases we never launched (soft deadline) go back to the queue.
+  const unattempted = claimed.slice(nextIndex).map((entry) => entry.url);
   if (unattempted.length > 0) {
     await scratchpad.releaseUrls(unattempted);
   }
@@ -324,12 +280,7 @@ async function runCrawlChunk(
     attempted: stats.attempted,
     pending: stats.pending,
     endWindow: windowSize,
-    endLaunchGapMs: throttle.launchGapMs,
   };
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 async function persistCrawledPages(input: {
